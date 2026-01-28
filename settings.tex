@@ -1,0 +1,268 @@
+% **************************************************
+% Settings
+% **************************************************
+% --------------------------
+% Packages
+% --------------------------
+%\usepackage[spanish,english,es-tabla]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+%\usepackage{lmodern}     % Use a modern font (that is not pixelated)
+%\usepackage[protrusion=true, expansion=true]{microtype}  % Use microtype to improve readability
+\usepackage{amsmath,amssymb} 
+\usepackage{tabularx}    % tables spanning the full text width
+\usepackage{multicol}    % multi-columns in tables
+\usepackage{multirow}    % multi-rows in tables
+\usepackage{longtable}   % tables spanning more than one page
+\usepackage{booktabs}    % nicer horizontal rules in tables
+\usepackage{ltablex}
+\usepackage{setspace}
+\usepackage{tikz}                % drawing custom shapes
+\usepackage{graphicx,graphics}   % packages to manage images
+\usepackage{subfigure}           % display two figures next to each other
+\usepackage[export]{adjustbox}
+\usepackage{ragged2e} 
+\usepackage{comment} 
+\usepackage{blindtext}
+\usepackage[acronym,nonumberlist,nomain]{glossaries}  % package for list of acronyms
+\usepackage{hyperref}
+\usepackage[a4paper]{geometry}
+\usepackage{parskip}     % paragraph spacing (suppress indentation)
+\usepackage{fancyhdr}    % personalizar encabezado
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{emptypage}   % no headers in empty pages
+\usepackage[small,hang,bf]{caption}    % caption options
+\usepackage{subcaption}   
+\usepackage{etoolbox}    % for \addto command
+
+%%% BIBLIOGRAPHY
+% The style used is APA. A list of available styles is available  at https://www.overleaf.com/learn/latex/Biblatex_bibliography_styles
+
+\usepackage[
+backend=biber,
+style=apa,
+sorting=nyt,
+doi=true,
+url=false,
+isbn=false,
+backref=false
+]{biblatex}
+
+% The .bib files in included here
+\addbibresource{thesisRefs.bib}
+
+% --------------------------
+% Customize document
+% --------------------------
+% Define the geometry of the document
+\newgeometry {top=30mm, bottom=28mm, inner=35mm, outer=25mm}
+%\newgeometry{top=22mm,bottom=28mm,inner=35mm,outer=25mm} % from EPFL
+
+\setlength{\parskip}{10pt}   % Change the default value
+
+% hiperlinks
+\hypersetup{
+    colorlinks=true,          % Enable colored links
+    linkcolor=petroffblue,          % Color for internal links
+    urlcolor=petroffblue,
+    citecolor=petroffblue,
+}
+
+% Header and footer
+\usepackage{fancyhdr}
+\renewcommand{\sectionmark}[1]{\markright{\thesection\ #1}}
+\pagestyle{fancy}
+	\fancyhf{}
+	\renewcommand{\headrulewidth}{0.4pt}
+	\renewcommand{\footrulewidth}{0pt}
+	\fancyhead[OR]{ \color{petroffblue}\nouppercase{\rightmark}}
+	\fancyhead[EL]{\color{petroffblue} \bfseries \nouppercase{\leftmark}}
+% 	\fancyfoot[EL,OR]{\thepage}
+    \fancyfoot[C]{\thepage}
+
+\renewcommand{\contentsname}{Table of Contents}
+
+% Increase indentation in lists
+\newlist{mydescription}{description}{1}
+\setlist[mydescription,1]{labelindent=2em, leftmargin=2em}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fonts
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% Fonts
+\usepackage[lf]{ebgaramond}
+\usepackage[oldstyle,scale=0.7]{sourcecodepro}
+\singlespacing
+
+% Makes it possible to switch between different languages in the text
+% while keeping hyphenation rules correct. Should you add another one
+% in the list, please ensure that `english` is the last one. The last
+% language is used to control standard hyphenation.
+\usepackage[ngerman,french,spanish,english]{babel}
+
+\RequirePackage[autostyle=true]{csquotes} % Context-sensitive quotation marks
+\RequirePackage{makeidx}  % For creating indices
+\RequirePackage{xspace}   % For automatically "eating" spaces
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Fonts & colours
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage[dvipsnames]{xcolor}
+
+\definecolor{pastelpink}{HTML}{FDB6D0}
+\definecolor{pastelyellow}{HTML}{FFD580}
+\definecolor{pastelorange}{HTML}{FFAE57}
+\definecolor{pastelgreen}{HTML}{BAE67E}
+\definecolor{pastelblue}{HTML}{5CCFE6}
+\definecolor{petroffblue}{HTML}{A2AABC}
+
+\definecolor{petroffblue}{HTML}{3F90DA}
+\definecolor{petroffyellow}{HTML}{FFA90E}
+\definecolor{petroffred}{HTML}{BD1F01}
+\definecolor{petroffpurple}{HTML}{832DB6}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Graphics
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{graphicx}
+\graphicspath{%
+  {Figures/}
+  {./}
+}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Paragraph lists & compact enumerations
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage[%
+    olditem,  % Do not modify itemize environments by default
+    oldenum   % Do not modify enumerate environments by default
+  ]{paralist}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Spacing
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{setspace}
+\onehalfspacing
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Tables
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{booktabs}
+\RequirePackage{multirow}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Proper typesetting of units
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{siunitx}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Mathematics
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\RequirePackage{amsmath}
+\RequirePackage{amsthm}
+\RequirePackage{dsfont}
+
+% Fix the spacing of \left and \right. Use these with the proper bracket
+% in order to ensure that they scale automatically.
+\let\originalleft\left
+\let\originalright\right
+\renewcommand{\left}{\mathopen{}\mathclose\bgroup\originalleft}
+\renewcommand{\right}{\aftergroup\egroup\originalright}
+
+\DeclareMathOperator*{\argmin}          {arg\,min}
+\DeclareMathOperator {\dist}            {dist}
+\DeclareMathOperator {\im}              {im}
+
+\newcommand{\domain}{\ensuremath{\mathds{D}}}
+\newcommand{\real}  {\ensuremath{\mathds{R}}}
+
+% Proper differential operators
+\newcommand{\diff}[1]{\ensuremath{\operatorname{d}\!{#1}}}
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Penalties
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\clubpenalty         = 10000
+\widowpenalty        = 10000
+\displaywidowpenalty = 10000
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Chapter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Classicthesis style
+% \usepackage{titlesec}
+% \titleformat{\chapter}[display]
+%   {\normalfont\raggedleft}
+%   {\fontsize{60}{60}\selectfont\thechapter}
+%   {1.2ex}
+%   {\huge\bfseries} % small caps title
+% %[\vspace{1ex}\titlerule]  % optional rule (remove if you don't want it)
+%\titlespacing*{\chapter}{0pt}{0pt}{3ex}
+
+% Latex mimosis style
+% \usepackage{titlesec}
+% \titleformat{\chapter}
+%   {\normalfont\huge\scshape}
+%   {\fontsize{60}{55}\selectfont\thechapter}
+%   {0.5em}
+%   {}
+
+% % Sections: all caps, no bold
+% \titleformat{\section}
+%   {\normalfont\Large\scshape}
+%   {\thesection}
+%   {0.7em}
+%   {}
+
+% \titleformat{\subsection}
+%   {\normalfont\large\scshape}
+%   {\thesubsection}
+%   {0.7em}
+%   {}
+
+% \titleformat{\subsubsection}
+%   {\normalfont\normalsize\scshape}
+%   {\thesubsubsection}
+%   {0.7em}
+%   {}
+
+\usepackage{titlesec}
+\titleformat{\chapter}
+  {\normalfont\Huge\bfseries}
+  {\color{petroffblue}\fontsize{60}{55}\selectfont\thechapter}
+  {0.5em}
+  {}
+
+% Sections: all caps, no bold
+\titleformat{\section}
+  {\normalfont\Large\bfseries}
+  {\color{petroffblue}\thesection}
+  {0.7em}
+  {}
+
+\titleformat{\subsection}
+  {\normalfont\large\bfseries}
+  {\color{petroffblue}\thesubsection}
+  {0.7em}
+  {}
+
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries}
+  {\color{petroffblue}\thesubsubsection}
+  {0.7em}
+  {}
+  
+% Spacing (tight/clean)
+\titlespacing*{\section}{0pt}{2.5ex plus .5ex minus .2ex}{1.5ex}
+\titlespacing*{\subsection}{0pt}{2.0ex plus .4ex minus .2ex}{1.2ex}
+\titlespacing*{\subsubsection}{0pt}{1.5ex plus .3ex minus .2ex}{1.0ex}
