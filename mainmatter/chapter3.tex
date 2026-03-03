@@ -13,17 +13,28 @@
 \end{center}
 
 \section{Introduction}
-FDTD, FIT, FDFV, 
+Brief introduction to numerical methods: FDTD, FVTD, FEM and their differences, advantages disadvantages. Particular case of 3D simulations of arbitrary geometries and material and benefits of adopting FIT.
 
-\subsection{Title of subsection}
+\section{The Finite Integration Technique}
+Introduction to FIT (essentially a vectorized FDTD). Background and history of FIT (used in Madfia, then CST, ECHO, GDFidL)
 
 \section{Maxwell Grid Equations}
+From the general integral form of Maxwell equations to the discretized form of maxwell grid equations. Describe thoroughly every single of the operators used (C, Ds, Da, fields...) and their topological properties, the need of a Yee-type grid (primal and dual) and the use of hexahedral cells. Be precise on where each quantity fields, materials is allocated in the final maxwell grid equation formulation.
 
 \section{Material properties}
+Describe how the material properties are computed (permitticity, permeability and conductivity) as tensors and are allocated according to the geometry importer. Describe the natural presence of anisotropy and how they map the 3 components of the fields.
 
 \section{Boundary conditions}
+Define the different boundary conditions available in Wakis (PEC, PMC, Periodic, Absorbing Boundary conditions and in particular PML, use 1 subsection per BC). In each section describe how the different boundary conditions in Wakis affect each of the operators: PEC and PMC applied to the CURL, periodic through the Ds and Da diagonal matrices, PML as an adiabatic absorber applied to permittivity and conductivity.
+
+\section{Beam source}
+Discuss the injection of a beam source through a longitudinal hard-source current in the longitudinal axis as a gaussian line charge distribution. Introduce the integration path of the fields to then be later used in the wakefield integration.
 
 \section{Time advancing}
+Discuss the available time integrators for FDTD/FIT and motivate the choice of the leap-frog.
+
 
 \section{Wakefield integration}
+Give a short introduction to Wakefields and Impedance, then discuss the consequence of retrieving the wake potential instead of the wake function in a
+Describe the integration of the electric and magnetic field to compute the longitudinal wake potential. Describe the Panfsky-Wenzel theorem to achieve the transverse wake potential. Describe the deconvolution needed to retrieve the longitudinal and transverse impedance from the wake potential and the charge distribution, discussing the sign convention. Introduce the concept of dipolar and quadrupolar impedance, discussing the shift of the beam source or the integration path respectively.
 
