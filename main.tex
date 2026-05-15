@@ -6,7 +6,7 @@ A4paper,                % paper size A4
 twoside,                % onesite or twoside printing
 openright,              % doublepage cleaning ends up right side
 chapterprefix=true,     % prefix for chapter marks
-11pt,                   % font size
+12pt,                   % font size
 headings=normal,        % size of headings
 titlepage=on,           % own page for each title page
 ]{book}
@@ -90,7 +90,8 @@ titlepage=on,           % own page for each title page
 % --------------------------
 \backmatter
 
-\input{frontmatter/7_acronyms}
+\input{acronyms}
+\makeglossaries
 
 \addcontentsline{toc}{chapter}{List of Figures}
 \listoffigures

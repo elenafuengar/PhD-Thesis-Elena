@@ -13,160 +13,136 @@
 \end{center}
 
 \section{Introduction}
-The evaluation of beam-coupling impedance and wakefields are critical in the design and operation of particle accelerators. As charged particle beams traverse accelerator structures, interactions with geometric discontinuities and material inhomogeneities generate electromagnetic (EM) fields—known as wakefields—these can degrade beam stability, cause beam-induced heating, and limit machine performance \cite{metral_impedance_2020}. The frequency-domain counterpart of these interactions is the beam-coupling impedance, an intrinsic property of each component used to quantify wakefield effects.
+The evaluation of beam-coupling impedance and wakefields are critical in the design 
+and operation of particle accelerators. As charged particle beams traverse accelerator 
+structures, interactions with geometric discontinuities and material inhomogeneities 
+generate \gls{em} fields---known as wakefields---that can degrade beam stability, cause 
+beam-induced heating, and limit machine performance \cite{metral_impedance_2020}. The 
+frequency-domain counterpart of these interactions is the beam-coupling impedance, an 
+intrinsic property of each component used to quantify wakefield effects.
 
-Analytical methods provide accurate impedance predictions for simplified structures such as resistive walls \cite{yokoya_resistive_1993, migliorati_resistive_2019}, RF cavities \cite{hofmann_analytic_1990, jensen_rf_2014}, and transitions such as tapers or steps \cite{yokoya_impedance_1990, stupakov_low_2007, palumbo_wake_1995}. However, for realistic accelerator components with complex geometries, the full three-dimensional solution of Maxwell’s equations \cite{maxwell_viii_1997} is required.
+Analytical methods provide accurate impedance predictions for simplified structures such 
+as resistive walls \cite{yokoya_resistive_1993, migliorati_resistive_2019}, RF cavities 
+\cite{hofmann_analytic_1990, jensen_rf_2014}, and transitions such as tapers or steps 
+\cite{yokoya_impedance_1990, stupakov_low_2007, palumbo_wake_1995}. However, for 
+realistic accelerator components with complex geometries, the full three-dimensional 
+solution of Maxwell's equations \cite{maxwell_viii_1997} is required.
 
-Maxwell’s equations can be solved numerically in either frequency or time domain, and several discretization approaches have been developed for the numerical solution of Maxwell's equations. Among the most widely used methods are the Finite Difference Time Domain (FDTD) method, the Finite Element Method (FEM), and the Finite Volume Time Domain (FVTD) method. These techniques differ primarily in the formulation of the governing equations (differential or weak form), the choice of basis functions, and the handling of material interfaces and boundary conditions. 
+Maxwell's equations can be solved numerically in either frequency or time domain, and 
+several discretization approaches have been developed. Among the most widely used 
+methods are the \gls{fdtd} method, the \gls{fem}, and the \gls{fvtd} method. These 
+techniques differ primarily in the formulation of the governing equations (differential 
+or weak form), the choice of basis functions, and the handling of material interfaces 
+and boundary conditions.
 
-In the frequency domain, for lossless and source-free structures, the problem reduces to an eigenmode formulation, as used in CST Eigenmode, HFSS, or ACE3P’s Omega3P. In contrast, time-domain solvers offer full-wave impedance characterization by directly computing Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}. Commercial solvers such as CST Wakefield, GDFiDL, and closed-source ECHO3D~\cite{zagorodnov_echo4d} and PBCI~\cite{Lau:1182975} report to use the Finite Integration Technique (FIT) \cite{weiland_finite_2003}, while ACE3P’s T3P employs the Finite Element Method (FEM) \cite{candel_ace3p_2010}.
+In the frequency domain, for lossless and source-free structures, the problem reduces 
+to an eigenmode formulation, as used in CST Eigenmode, HFSS, or ACE3P's Omega3P. In 
+contrast, time-domain solvers offer full-wave impedance characterization by directly 
+computing Maxwell's Equations in integral (see Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) or differential form. Commercial solvers such as 
+CST Wakefield, GDFiDL, and closed-source ECHO3D~\cite{zagorodnov_echo4d} and 
+PBCI~\cite{Lau:1182975} report to use the \gls{fit} \cite{weiland_finite_2003}, while 
+ACE3P's T3P employs the \gls{fem} \cite{candel_ace3p_2010}.
 
-Several 3D open-source solvers implement full-wave time-domain methods, such as Meep \cite{oskooi_meep_2010} and WarpX \cite{fedeli_pushing_2022}, both based on the Finite-Difference Time-Domain (FDTD) method \cite{yee_numerical_1966}, and EMcLaW \cite{moreno_emclaw_2021}, which uses a Finite-Volume Time-Domain (FVTD) Godunov scheme. However, these tools lack key features needed for beam-coupling impedance calculations—such as native CAD geometry support, advanced material modeling, or wakefield-tailored post-processing. 
+Several 3D open-source solvers implement full-wave time-domain methods, such as Meep 
+\cite{oskooi_meep_2010} and WarpX \cite{fedeli_pushing_2022}, both based on the 
+\gls{fdtd} method \cite{yee_numerical_1966}, and EMcLaW \cite{moreno_emclaw_2021}, 
+which uses a \gls{fvtd} Godunov scheme. However, these tools lack key features needed 
+for beam-coupling impedance calculations---such as native \gls{cad} geometry support, 
+advanced material modeling, or wakefield-tailored post-processing.
 
-In this section, a brief overview of each numerical method, applied to 3D time-domain simulations, is offered to the reader, as well as a summary table comparing it's pros and cons. FInally, the motivation for the chosen method for the numerical tool Wakis will be stressed. 
+\subsection{Motivation for the Finite Integration Technique}
 
-\subsection{Finite Difference Time Domain (FDTD)}
+The \gls{fit}, originally introduced by Weiland, discretizes the integral form of 
+Maxwell's equations on a pair of staggered primal and dual grids. Unlike approaches 
+that discretize differential operators directly, \gls{fit} assigns physical \glspl{dof} to geometric objects---edge-integrated electric quantities and face-integrated 
+magnetic fluxes---and constructs discrete curl and divergence operators that preserve 
+the fundamental topological identities of the continuous equations exactly at the 
+discrete level. This separation between metric-free topological operators and metric- 
+and material-dependent matrices provides a transparent framework for incorporating 
+complex materials, boundary conditions, and time-dependent sources.
 
-The FDTD method, introduced by Yee, is based on a direct discretization of the differential form of Maxwell's equations on a staggered Cartesian grid. It is explicit in time, simple to implement, and computationally efficient for structured meshes. However, the classical FDTD formulation does not clearly separate topological properties of Maxwell’s equations from metric and material information.
+In its time-domain formulation, \gls{fit} leads to a leap-frog scheme that is 
+equivalent in accuracy to the classical Yee \gls{fdtd} algorithm, while offering a 
+clearer algebraic structure derived systematically from integral balance laws on a 
+primal--dual cell complex. This structure is particularly well suited to wakefield and 
+impedance computations in accelerator components with arbitrary three-dimensional 
+geometry and inhomogeneous materials, where robustness and computational efficiency are 
+essential.
 
-The classical FDTD method discretizes the differential form of Maxwell's equations
-\begin{align}
-\nabla \times \mathbf{E} &= -\mu \frac{\partial \mathbf{H}}{\partial t}, \\
-\nabla \times \mathbf{H} &= \varepsilon \frac{\partial \mathbf{E}}{\partial t} + \mathbf{J},
-\end{align}
-on a staggered Cartesian grid introduced by Yee. Electric and magnetic field components are offset in space and time, yielding a second-order accurate explicit scheme.
+Historically, \gls{fit} was first applied to accelerator problems in the MAFIA solver 
+and later became the foundation of the CST transient solver. Related time-domain 
+codes---ECHO and GdfidL---exploit the same staggered-grid philosophy, emphasising 
+conservation, sparse operators, and explicit time stepping. In this thesis, \gls{fit} 
+is adopted as the core numerical method of \wakis, enabling broadband wakefield and 
+impedance characterisation from a single time-domain simulation.
 
-In its simplest form, central finite differences in space and time lead to update equations of the form
-\begin{align}
-\mathbf{H}^{n+\frac12} &= \mathbf{H}^{n-\frac12}
-- \Delta t \, \mu^{-1} \left( \nabla_h \times \mathbf{E}^n \right), \\
-\mathbf{E}^{n+1} &= \mathbf{E}^n
-+ \Delta t \, \varepsilon^{-1} \left( \nabla_h \times \mathbf{H}^{n+\frac12} - \mathbf{J}^{n+\frac12} \right),
-\end{align}
-where $\nabla_h$ denotes discrete curl operators.
+In the following sections, we introduce the primal and dual grids used in \wakis\ and 
+define the discrete \gls{em} degrees of freedom associated with edges and faces. 
+Applying discrete versions of Stokes' and Gauss' theorems converts the integral 
+Maxwell equations into the \glspl{mge}, which constitute the algebraic core of the 
+solver and serve as the starting point for implementing boundary conditions, sources, 
+and the explicit leap-frog time-advancing scheme.
 
-The method is explicit and conditionally stable under the Courant–Friedrichs–Lewy (CFL) condition. Its main advantages are simplicity and computational efficiency on structured grids. However, the differential formulation does not explicitly separate topological properties from metric information.
-
-\subsection{Finite Element Method (FEM)}
-The Finite Element Method employs a variational formulation and unstructured meshes, which allows for accurate representation of curved geometries and higher-order basis functions. This flexibility comes at the cost of increased implementation complexity and typically larger algebraic systems.
-
-The FEM is based on a weak (variational) formulation of Maxwell’s equations. Starting from the strong form, one multiplies by a test function $\mathbf{w}$ and integrates over the computational domain $\Omega$:
-\begin{equation}
-\int_{\Omega} \mathbf{w} \cdot 
-\left( \nabla \times \mu^{-1} \nabla \times \mathbf{E}
-- \omega^2 \varepsilon \mathbf{E} \right) \, dV
-=
-\int_{\Omega} \mathbf{w} \cdot i\omega \mathbf{J} \, dV.
-\end{equation}
-
-After integration by parts, the problem reduces to the algebraic system
-\begin{equation}
-\mathbf{K} \mathbf{e} = \mathbf{f},
-\end{equation}
-where $\mathbf{K}$ is the stiffness matrix constructed from edge-based basis functions.
-
-\subsection{Finite Volume Time Domain (FVTD)}
-
-FVTD methods reformulate Maxwell’s equations in conservation form and integrate them over control volumes:
-\begin{equation}
-\frac{d}{dt} \int_{V_i} \mathbf{U} \, dV
-+ \int_{\partial V_i} \mathbf{F}(\mathbf{U}) \cdot \mathbf{n} \, dS = 0,
-\end{equation}
-where $\mathbf{U}$ represents the conserved field quantities and $\mathbf{F}$ the flux tensor.
-
-Numerical fluxes are computed at cell interfaces, often using Godunov-type schemes. FVTD methods are particularly suitable for unstructured meshes and can naturally handle discontinuous material interfaces. However, they are typically more complex to implement than structured-grid FDTD schemes.
-
-FEM allows unstructured meshes and curved geometries, and supports higher-order approximations. The price is the assembly of large sparse systems and typically implicit time integration or frequency-domain solvers.
-
-\subsection*{Motivation for the Finite Integration Technique}
-
-The Finite Integration Technique (FIT), originally introduced by Weiland, provides a discretization of the integral form of Maxwell’s equations on a pair of staggered primal and dual grids. It preserves the topological structure of Maxwell’s equations exactly at the discrete level and separates metric-free operators from material-dependent quantities. In its time-domain formulation, FIT can be interpreted as a vectorized generalization of the Yee scheme, while offering a more systematic algebraic structure and a direct path to frequency-domain formulations.
-
-For three-dimensional accelerator components with arbitrary geometry and inhomogeneous materials, FIT combines the robustness of structured grids with a clear algebraic formulation of Maxwell’s equations. These properties make it particularly well suited for wakefield and impedance computations, and it forms the numerical foundation of the Wakis solver.
-
-The Finite Integration Technique combines advantages of structured-grid FDTD schemes with a rigorous algebraic formulation based on the integral form of Maxwell’s equations. By discretizing integral quantities on a pair of staggered primal and dual grids, FIT preserves the topological structure of Maxwell’s equations exactly at the discrete level.
-
-This separation between topological operators and metric-dependent material matrices provides a transparent framework for incorporating complex materials, boundary conditions, and time-dependent sources. In the time domain, FIT leads to a leap-frog scheme equivalent in accuracy to the Yee algorithm, while offering a clearer algebraic structure that is particularly suitable for wakefield and impedance computations.
-
-\begin{table}[htbp]
-\centering
-\caption{Comparison of numerical methods for 3D wakefield and impedance simulations in accelerator components.}
-\label{tab:numerical_methods_comparison}
-\renewcommand{\arraystretch}{1.3}
-\begin{tabular}{p{2.5cm} p{2.2cm} p{2.2cm} p{2.2cm} p{3.5cm}}
-\hline
-\textbf{Method} 
-& \textbf{Formulation} 
-& \textbf{Grid Type} 
-& \textbf{Time Integration} 
-& \textbf{Suitability for 3D Wakefield Simulations} \\
-\hline
-
-FDTD (Yee) 
-& Differential form of Maxwell equations 
-& Structured Cartesian staggered grid 
-& Explicit (leap-frog) 
-& Efficient and simple; well suited for large domains. 
-Limited geometric flexibility; material interfaces require staircasing or subcell models. \\
-
-FEM 
-& Weak (variational) formulation 
-& Unstructured tetrahedral/hexahedral mesh 
-& Typically implicit (frequency-domain or time-domain) 
-& High geometric accuracy and curved boundaries. 
-Leads to large sparse systems; broadband wakefield extraction requires multiple solves or long transient simulations. \\
-
-FVTD 
-& Conservation form 
-& Structured or unstructured control volumes 
-& Explicit or semi-implicit 
-& Natural handling of discontinuities and fluxes. 
-More complex implementation; typically higher computational cost for large 3D domains. \\
-
-FIT (Wakis) 
-& Integral form of Maxwell equations 
-& Dual-orthogonal staggered hexahedral grid 
-& Explicit leap-frog (time domain) 
-& Preserves discrete topology exactly; 
-separates metric and material effects; 
-well suited for long beam pipes and broadband wakefield extraction in a single transient simulation; 
-results in sparse structured operators enabling efficient large-scale computations. \\
-
-\hline
-\end{tabular}
-\end{table}
-
-\section{The Finite Integration Technique}
-\label{sec:fit}
-
-The Finite Integration Technique (FIT) is a structure-preserving discretization of Maxwell's equations based on their integral formulation. In contrast to approaches that discretize the differential operators directly, FIT starts from the physically conservative laws expressed as line, surface, and volume integrals, and replaces these integrals by discrete counterparts on a pair of staggered grids. This construction yields a finite-dimensional system that retains the fundamental topological identities of the continuous equations (e.g.\ ``curl--grad'' and ``div--curl'' relations) exactly at the discrete level. As a result, FIT provides a transparent separation between metric-free, purely topological operators and metric- and material-dependent quantities, which is particularly advantageous for robust electromagnetic simulations in complex accelerator components with arbitrary 3D shapes.
-
-Historically, FIT was introduced as an algebraic framework for electromagnetic field computation on structured grids and has since formed the numerical basis of widely used wakefield and impedance tools. Early accelerator applications adopted FIT in solvers such as MAFIA, and the method later became the foundation of the CST transient solver. Related time-domain solvers for wakefield and impedance computations, such as ECHO and GdfidL, also exploit staggered-grid formulations that emphasize conservation, sparse operators, and explicit time stepping. In this thesis, FIT is adopted as the core numerical method of Wakis, enabling broadband wakefield and impedance characterization from a single time-domain simulation while maintaining computational efficiency on large three-dimensional domains.
-
-From a numerical standpoint, the time-domain FIT formulation can be interpreted as a vectorized generalization of the classical Yee FDTD scheme: both employ staggered electric and magnetic unknowns in space (and, in the leap-frog scheme, in time), leading to second-order accurate explicit updates under a Courant-type stability condition. The distinguishing feature of FIT is that its discretization is derived systematically from integral balance laws on a primal--dual cell complex, which provides a natural framework to (i) assign unknowns to geometric objects (edges, faces, volumes), (ii) construct discrete curl and divergence operators that are independent of material properties, and (iii) incorporate material response and geometric scaling through diagonal (or sparse) metric and material matrices. This separation is central to the numerical tool developed during this doctoral thesis, Wakis. The sparse topological operators encode connectivity only, whereas all information on cell sizes, anisotropy, and losses enters through the material and metric terms discussed in later sections.
-
-In the following, we introduce the primal and dual grids used in Wakis and define the discrete electromagnetic degrees of freedom associated with edges and faces. By applying discrete versions of Stokes' and Gauss' theorems on the grid, the integral Maxwell equations are converted into the Maxwell Grid Equations (MGEs). These MGEs constitute the algebraic core of the solver and provide the starting point for the implementation of boundary conditions, sources, and the explicit leap-frog time-advancing scheme.
-
-\section{Maxwell Grid Equations}
+\section{Description of Maxwell Grid Equations}
 \label{sec:mge}
 
 \subsection{Integral form of Maxwell's equations}
 \label{sec:mge_integral}
 
-The ultimate goal is to solve maxwell's equations in a certain simulation domain that includes arbitrarily 3D-shaped material regions, under certain boundary conditions, under the excitation of a passing beam source. Let $\Omega \subset \mathbb{R}^3$ denote the computational domain with boundary $\partial\Omega$ and outward unit normal $\mathbf{n}$. In FIT, the electromagnetic field evolution is formulated starting from the general integral form of Maxwell equations, written for an arbitrary oriented surface $A$ with boundary $\partial A$ and an arbitrary volume $V$ with boundary $\partial V$:
+The ultimate goal is to solve Maxwell's equations in a box-shaped simulation domain 
+that includes arbitrarily 3D-shaped material regions, under certain boundary
+conditions, and under the excitation of a passing beam source. To achieve this, we 
+start from the most general approach, the integral form of Maxwell's equations.
+
+Let $\Omega \subset \mathbb{R}^3$ denote the computational domain with boundary 
+$\partial\Omega$ and outward unit normal $\mathbf{n}$. In \gls{fit}, the \gls{em} 
+field evolution is formulated starting from the general integral form of Maxwell 
+equations, written for an arbitrary oriented surface $A$ with line boundary $\partial 
+A$ and an arbitrary volume $V$ with surface boundary $\partial V$:
+
 \begin{align}
-\oint_{\partial A} \mathbf{E} \cdot d\mathbf{l}
-&= - \frac{d}{dt}\int_{A} \mathbf{B}\cdot d\mathbf{A},
-\label{eq:faraday_integral}\\
-\oint_{\partial A} \mathbf{H} \cdot d\mathbf{l}
-&= \frac{d}{dt}\int_{A} \mathbf{D}\cdot d\mathbf{A} + \int_{A}\mathbf{J}\cdot d\mathbf{A},
-\label{eq:ampere_integral}\\
-\int_{\partial V}\mathbf{B}\cdot d\mathbf{A} &= 0,
-\label{eq:gaussB_integral}\\
-\int_{\partial V}\mathbf{D}\cdot d\mathbf{A} &= \int_V \rho \, dV.
-\label{eq:gaussD_integral}
+\oint_{\partial A} \mathbf{E}\cdot \mathrm{d}\mathbf{s} &= -\iint_{A}\frac{\partial \mathbf{B}}{\partial t}\cdot \mathrm{d}\mathbf{A} \label{eq:Maxwell:a}\\[6pt]
+\oint_{\partial A} \mathbf{H}\cdot \mathrm{d}\mathbf{s} &= \iint_{A}\left(\frac{\partial \mathbf{D}}{\partial t} + \mathbf{J}\right)\cdot \mathrm{d}\mathbf{A} \label{eq:Maxwell:b}\\[6pt]
+\oiint_{\partial V} \mathbf{B}\cdot \mathrm{d}\mathbf{A} &= 0 \label{eq:Maxwell:c}\\[6pt]
+\oiint_{\partial V} \mathbf{D}\cdot \mathrm{d}\mathbf{A} &= \iiint_{V}\rho\, \mathrm{d}V \label{eq:Maxwell:d}
 \end{align}
-The constitutive relations close the system by linking the field intensities $(\mathbf{E},\mathbf{H})$ to the flux densities $(\mathbf{D},\mathbf{B})$. In the most general (possibly anisotropic) case,
+
+Equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} represent the evolution of the 
+electric field $\mathbf{E}$, magnetic flux density $\mathbf{B}$, electric displacement 
+field $\mathbf{D}$, and magnetic field intensity $\mathbf{H}$, in the presence of a 
+current density $\mathbf{J}$ and charge density $\rho$. Taken together, they govern all 
+classical electromagnetic phenomena and form the foundation of the numerical method 
+developed in this work:
+
+\begin{mydescription}
+    \item[Faraday's law~\eqref{eq:Maxwell:a}:] the circulation of the electric 
+    field $\mathbf{E}$ around the closed boundary $\partial A$ of any oriented surface $A$ 
+    equals the negative rate of change of the magnetic flux through that surface. This 
+    relation captures the fundamental coupling between time-varying magnetic fields and 
+    induced electric fields.
+
+    \item[Amp\`ere--Maxwell law~\eqref{eq:Maxwell:b}:] the circulation of the 
+    magnetic field intensity $\mathbf{H}$ around $\partial A$ is driven by two 
+    contributions --- the conduction current density $\mathbf{J}$ and the displacement 
+    current $\partial \mathbf{D}/\partial t$, the latter introduced by Maxwell to ensure 
+    consistency with charge conservation. These source terms enable the propagation of 
+    electromagnetic waves even in the absence of free charges.
+
+    \item[Gauss's law for magnetic fields~\eqref{eq:Maxwell:c}:] the net magnetic 
+    flux through any closed surface $\partial V$ is identically zero, expressing the 
+    absence of magnetic monopoles. This constraint is satisfied by construction in the 
+    discrete setting when the initial conditions are divergence-free.
+
+    \item[Gauss's law for electric fields~\eqref{eq:Maxwell:d}:] the total electric 
+    flux through a closed surface $\partial V$ equals the net free charge enclosed in the 
+    volume $V$. Similarly to Eq.~\eqref{eq:Maxwell:c}, this relation is automatically 
+    preserved at the discrete level by the consistency of the primal--dual grid 
+    construction.
+\end{mydescription}
+
+The constitutive relations close the system by linking the field intensities 
+$(\mathbf{E},\mathbf{H})$ to the flux densities $(\mathbf{D},\mathbf{B})$. In the 
+most general (possibly anisotropic) case,
 \begin{align}
 \mathbf{D} &= \underline{\underline{\varepsilon}}\,\mathbf{E}, \qquad
 \mathbf{B} = \underline{\underline{\mu}}\,\mathbf{H}, \qquad
@@ -174,26 +150,91 @@ The constitutive relations close the system by linking the field intensities $(\
 \label{eq:constitutive_continuum}
 \end{align}
 
-where $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$ are (in general space-dependent) second-order tensors and $\mathbf{J}_{\mathrm{s}}$ denotes impressed sources such as the beam current introduced in Sec.~\ref{sec:beam_source}.
+The constitutive relations in Eq.~\eqref{eq:constitutive_continuum} relate these 
+fields through the material properties: permittivity $\varepsilon$, permeability 
+$\mu$, and conductivity $\sigma$. They are represented as $\underline{\underline{\varepsilon}}$, 
+$\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$, which are (in 
+general space-dependent) second-order tensors, and $\mathbf{J}_{\mathrm{s}}$ denotes 
+impressed sources such as the particle beam current introduced in 
+Sec.~\ref{sec:beam_source}.
 
-\begin{figure}
+\subsection{The computational grid $G$} 
+
+\begin{figure}[!tbh]
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/3.1_computational_grid.pdf}
-    \caption{Schematic of the simulation domain discretization. The domain is considered like a rectangular box, that is subdivided into individual computational cells composing the cartesian grid. Each computational cell $n$ is ordered using the lexico-graphic indexing order}
+    \includegraphics[width=\linewidth]{figures/3.1_computational_grid.pdf}
+    \caption{Schematic of the simulation domain discretization. The domain is 
+    considered as a rectangular box subdivided into individual computational cells 
+    composing the Cartesian grid. Each computational cell $n$ is ordered using the 
+    lexicographic indexing convention.}
     \label{fig:comp_grid}
 \end{figure}
 
-\begin{figure}
+In order to numerically solve the presented set of equations, the computational domain $\Omega$ is discretized into a set number of hexahedral computational cells in each coordinate direction $x$, $y$, $z$, forming a computational grid $\mathbf{G}$ of $\{N_x \times N_y \times N_z\}$ cells. The grid $G$ is defined in the orthogonal coordinate system 
+$\mathbf{r} = \mathbf{r}(x,y,z)$ as:
+
+\begin{equation}
+\begin{split}
+\mathbf{G} = \{ (x_i,\, y_j,\, z_k)\quad 
+    x_0 < x_i < x_I,\ i = 1,\ldots,I-1\quad \\
+    y_0 < y_j < y_J,\ j = 1,\ldots,J-1\quad \\
+    z_0 < z_k < z_K,\ k = 1,\ldots,K-1 \}
+\end{split}
+\label{eq:grid}
+\end{equation}
+
+where $I=N_x$, $J=N_y$, and $K=N_z$. From this spatial construction of the grid, all 
+grid nodes $n$ of each computational cell in $\mathbf{G}$ are numbered linearly 
+following the lexicographic indexing convention (see \autoref{def:Lexicographic_indexing}):
+
+\begin{equation}
+    n = iM_x + jM_y + kM_z,
+    \qquad n = 0,\ldots,N = IJK-1.
+\end{equation}
+
+The quantities $M_x,\ M_y,\ M_z$ can be chosen to follow different ordering 
+conventions. In the original \gls{fit} formulation \cite{weiland_wake_1992}, the 
+choice $M_x = 1,\ M_y = I,\ M_z = IJ$ sets a Fortran-order scheme, which is also 
+followed in this thesis.
+
+\begin{definition}{Lexicographic indexing}{Lexicographic_indexing}
+A bijective mapping from multi-dimensional grid indices $(i, j, k)$ to a single 
+linear index $n \in [0,\, N_x N_y N_z)$. Two standard conventions exist: 
+\textbf{Fortran-order} (column-major), where the first index varies fastest,
+$n = i + N_x j + N_x N_y k$, and \textbf{C-order} (row-major), where the last 
+index varies fastest, $n = k + N_z j + N_z N_y i$. The choice of ordering 
+convention directly affects the sparsity pattern of the \gls{fit} matrices and has 
+implications for memory access efficiency and solver performance.
+\end{definition}
+
+As shown in Figure~\ref{fig:comp_grid}, each computational cell $n$ is identified by 
+an index triplet $\{i,\ j,\ k\}$, where $i$ represents the index along the 
+$x$-direction, $j$ along the $y$-direction, and $k$ along the $z$-direction. The 
+resulting ordered set of indices allows the field information to be stored in arrays 
+and the matrix operators that numerically replace the continuous integral operators to 
+be constructed. 
+
+\subsection{The computational cell $n$}
+
+\begin{figure}[!tbh]
     \centering
-    \includegraphics[width=0.8\linewidth]{figures/3.2_computational_cell.pdf}
-    \caption{Schematic of the quantities allocation of each computational cell $n$}
+    \includegraphics[width=\linewidth]{figures/3.2_computational_cell.pdf}
+    \caption{Schematic of the quantities allocation of each computational cell $n$.}
     \label{fig:comp_cell}
 \end{figure}
 
-\subsection{Primal--dual grid and allocation of degrees of freedom}
-\label{sec:mge_grids_dofs}
+The field distribution in the volume of interest is replaced by discrete field values on
+each computational grid cell $n$ cell. Rather than assigning all six field components to grid nodes (which causes problems at material interfaces where some components are discontinuous), the components of $\mathbf{E}$ are placed at the midpoints of cell edges $l_x$, $l_y$, 
+$l_z$, and the components of the magnetic field $\mathbf{H}$ pierce the center of each cell face $A_x$, $A_y$, $A_z$. Figure~\ref{fig:comp_cell} shows a schematic of the base computational cell $n$, together with the field component locations and their indexation.
 
-The Finite Integration Technique discretizes Eqs.~\eqref{eq:faraday_integral}--\eqref{eq:gaussD_integral} by replacing line, surface, and volume integrals with discrete unknowns defined on a pair of staggered cell complexes: a \emph{primal} grid and its \emph{dual} grid. In FIT, the primal grid is a structured partition of $\Omega$ into orthogonal hexahedral cells, which is compatible with a Yee-type staggering of electric and magnetic quantities. The dual grid is constructed by shifting the primal grid by half a cell in each coordinate direction, such that:
+\subsubsection{A closer look at \glspl{dof} indexation}
+Notice the field indexes shown in the figure. When moving in the x direction, the lexicographic index $n$ increases by 1. Therefore the field components $E_{z, n+1}$ and $E_{y, n+1}$ would already belong to the next computational cell $(n+1)$. Note the described lengths $l_x,n^*, \ l_y,n^*, \ l_z,n^*,$, denoted with a star in the figure. The indexes would be correct if we use a uniformly spaced grid in all three dimensions. However, if different edge lengths per dimension are included in the numerical method, the right indexing for each length would be $l_x,n+N_xN_y , \ l_y,n+N_xN_y$ since they would belong to the next cell in z-direction ($n+N_xN_y$) and  $l_z,n+N_x,$, since this edge length would belong to the next cell in y-direction ($n+N_x$).
+
+\subsection{Primal--dual cell staggering}
+\label{sec:mge_yee}
+
+So far, the \glspl{dof} discretization has been kept as general as possible and could be 
+The Finite Integration Technique discretizes Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} by replacing line, surface, and volume integrals with discrete unknowns defined on a pair of staggered cell complexes: a \emph{primal} grid and its \emph{dual} grid. In FIT, the primal grid is a structured partition of $\Omega$ into orthogonal hexahedral cells, which is compatible with a Yee-type staggering of electric and magnetic quantities. The dual grid is constructed by shifting the primal grid by half a cell in each coordinate direction, such that:
 \begin{itemize}
   \item primal edges are pierced orthogonally by dual faces,
   \item primal faces are pierced orthogonally by dual edges,
@@ -217,127 +258,9 @@ q_m &:= \int_{V_m} \rho\, dV
 \end{align}
 Collecting these unknowns into vectors $\mathbf{e}, \mathbf{h}, \mathbf{b}, \mathbf{d}, \mathbf{j}, \mathbf{q}$ yields the finite-dimensional representation used in Wakis.
 
-\subsection{Topological operators}
-\label{sec:mge_topological_ops}
-
-The discrete counterparts of Stokes' and Gauss' theorems are encoded by sparse incidence matrices that depend only on grid connectivity and orientation.
-
-\paragraph{Discrete curl operator.}
-Applying Stokes' theorem on each oriented primal face $A_k$ gives
-\begin{equation}
-\sum_{L_i \in \partial A_k} \operatorname{sgn}(L_i,A_k)\, e_i
-= -\frac{d}{dt} b_k,
-\end{equation}
-where $\operatorname{sgn}(L_i,A_k)\in\{-1,0,+1\}$ encodes the relative orientation of edge $L_i$ with respect to the circulation along $\partial A_k$. Introducing the sparse \emph{curl incidence matrix} $\mathbf{C}$ (face--edge incidence on the primal grid), this relation becomes
-\begin{equation}
-\mathbf{C}\,\mathbf{e} = -\frac{d}{dt}\mathbf{b}.
-\label{eq:mge_faraday}
-\end{equation}
-
-Similarly, applying Stokes' theorem on each dual face $\tilde A_\ell$ for Amp\`ere--Maxwell's law yields the dual curl incidence matrix $\tilde{\mathbf{C}}$:
-\begin{equation}
-\tilde{\mathbf{C}}\,\mathbf{h} = \frac{d}{dt}\mathbf{d} + \mathbf{j}.
-\label{eq:mge_ampere_dual}
-\end{equation}
-For orthogonal primal--dual grid pairs with consistent orientation conventions, the incidence matrices satisfy the discrete duality relation
-\begin{equation}
-\tilde{\mathbf{C}} = -\mathbf{C}^{\mathsf{T}}.
-\label{eq:curl_duality}
-\end{equation}
-
-\paragraph{Discrete divergence operator.}
-Applying Gauss' theorem on each primal cell volume $V_m$ yields
-\begin{equation}
-\sum_{A_k \in \partial V_m} \operatorname{sgn}(A_k,V_m)\, b_k = 0,
-\end{equation}
-which defines the primal \emph{divergence incidence matrix} $\mathbf{S}$ (volume--face incidence on the primal grid):
-\begin{equation}
-\mathbf{S}\,\mathbf{b} = \mathbf{0}.
-\label{eq:mge_gaussB}
-\end{equation}
-Likewise, Gauss' law for the electric flux on the dual grid leads to
-\begin{equation}
-\tilde{\mathbf{S}}\,\mathbf{d} = \mathbf{q},
-\label{eq:mge_gaussD}
-\end{equation}
-where $\tilde{\mathbf{S}}$ is the dual divergence incidence matrix.
-
-\paragraph{Topological identities.}
-A key feature of FIT is that the discrete operators satisfy the exact algebraic counterparts of the continuous vector calculus identities, independently of mesh resolution and cell sizes:
-\begin{equation}
-\mathbf{S}\,\mathbf{C} = \mathbf{0}, \qquad
-\tilde{\mathbf{S}}\,\tilde{\mathbf{C}} = \mathbf{0}.
-\label{eq:topological_identities}
-\end{equation}
-These relations are purely topological: they follow from the fact that the boundary of a boundary is empty (each oriented face boundary cancels pairwise when summed over a closed surface).
-
-\subsection{Metric quantities and diagonal grid matrices}
-\label{sec:mge_metric_matrices}
-
-To connect integral quantities defined on primal and dual objects, FIT introduces metric information through diagonal matrices that store edge lengths, face areas, and cell volumes. For an orthogonal hexahedral mesh, it is convenient to define:
-\begin{align}
-\mathbf{D}_{\mathrm{s}} &:= \operatorname{diag}\left( |L_i| \right),
-&
-\mathbf{D}_{\mathrm{a}} &:= \operatorname{diag}\left( |A_k| \right), \label{eq:Ds_Da_primal}\\
-\tilde{\mathbf{D}}_{\mathrm{s}} &:= \operatorname{diag}\left( |\tilde L_j| \right),
-&
-\tilde{\mathbf{D}}_{\mathrm{a}} &:= \operatorname{diag}\left( |\tilde A_\ell| \right), \label{eq:Ds_Da_dual}
-\end{align}
-where $|L_i|$ denotes the length of primal edge $L_i$, $|A_k|$ the area of primal face $A_k$, and similarly for dual quantities. These diagonal matrices are not required for the definition of the incidence operators $\mathbf{C},\mathbf{S}$, but they enter the constitutive relations and (depending on implementation choices) the normalization of discrete differential operators.
-
-In Wakis, the structured nature of the grid allows most geometric information to be precomputed and stored efficiently, which is crucial for performant time stepping on large 3D domains.
-
-\subsection{Discrete constitutive relations and field allocation}
-\label{sec:mge_constitutive_discrete}
-
-The material response and metric coupling between the primal and dual unknowns are introduced through discrete constitutive relations of the form
-\begin{equation}
-\mathbf{d} = \mathbf{M}_{\varepsilon}\,\mathbf{e}, 
-\qquad
-\mathbf{b} = \mathbf{M}_{\mu}\,\mathbf{h},
-\label{eq:constitutive_discrete}
-\end{equation}
-and, for conductive media,
-\begin{equation}
-\mathbf{j}_{\sigma} = \mathbf{M}_{\sigma}\,\mathbf{e},
-\label{eq:constitutive_sigma_discrete}
-\end{equation}
-with $\mathbf{j} = \mathbf{j}_{\sigma} + \mathbf{j}_{\mathrm{s}}$. The matrices $\mathbf{M}_{\varepsilon}$, $\mathbf{M}_{\mu}$, and $\mathbf{M}_{\sigma}$ incorporate both geometry (metric terms) and material parameters. On an orthogonal hexahedral primal--dual pair and for isotropic materials, these matrices are diagonal and can be interpreted as local ``edge-to-dual-face'' (or ``dual-edge-to-face'') scalings. For anisotropic materials, they generally become sparse block matrices coupling field components, reflecting the tensorial nature of $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$, and $\underline{\underline{\sigma}}$.
-
-The allocation of unknowns implied by Eqs.~\eqref{eq:dof_e}--\eqref{eq:dof_d} is consistent with the Yee-type staggering:
-\begin{itemize}
-  \item $\mathbf{e}$ is associated with \emph{primal edges} (electric circulation),
-  \item $\mathbf{b}$ is associated with \emph{primal faces} (magnetic flux),
-  \item $\mathbf{h}$ is associated with \emph{dual edges} (magnetic circulation),
-  \item $\mathbf{d}$ and $\mathbf{j}$ are associated with \emph{dual faces} (electric flux and current).
-\end{itemize}
-This staggering ensures that the discrete curl relations \eqref{eq:mge_faraday} and \eqref{eq:mge_ampere_dual} couple complementary geometric objects, enabling explicit time integration without solving global linear systems.
-
-\subsection{Maxwell Grid Equations in matrix form}
-\label{sec:mge_matrix_form}
-
-Combining the discrete Faraday and Amp\`ere--Maxwell relations \eqref{eq:mge_faraday}--\eqref{eq:mge_ampere_dual} with the constitutive laws \eqref{eq:constitutive_discrete}--\eqref{eq:constitutive_sigma_discrete} yields the Maxwell Grid Equations (MGEs) as a first-order system in time:
-\begin{align}
-\mathbf{C}\,\mathbf{e} &= -\frac{d}{dt}\mathbf{b},
-\label{eq:mge_final_faraday}\\
-\tilde{\mathbf{C}}\,\mathbf{h} &= \frac{d}{dt}\mathbf{d} + \mathbf{M}_{\sigma}\mathbf{e} + \mathbf{j}_{\mathrm{s}},
-\label{eq:mge_final_ampere}\\
-\mathbf{S}\,\mathbf{b} &= \mathbf{0},
-\label{eq:mge_final_gaussB}\\
-\tilde{\mathbf{S}}\,\mathbf{d} &= \mathbf{q}.
-\label{eq:mge_final_gaussD}
-\end{align}
-Using \eqref{eq:curl_duality} and \eqref{eq:constitutive_discrete}, the evolution equations can be written solely in terms of $\mathbf{e}$ and $\mathbf{h}$:
-\begin{align}
-\mathbf{C}\,\mathbf{e} &= -\frac{d}{dt}\left(\mathbf{M}_{\mu}\mathbf{h}\right),
-\label{eq:mge_eh_1}\\
--\mathbf{C}^{\mathsf{T}}\,\mathbf{h} &= \frac{d}{dt}\left(\mathbf{M}_{\varepsilon}\mathbf{e}\right) + \mathbf{M}_{\sigma}\mathbf{e} + \mathbf{j}_{\mathrm{s}}.
-\label{eq:mge_eh_2}
-\end{align}
-Equations \eqref{eq:mge_eh_1}--\eqref{eq:mge_eh_2}, together with the discrete divergence constraints \eqref{eq:mge_final_gaussB}--\eqref{eq:mge_final_gaussD}, constitute the algebraic core solved by Wakis. The sparse incidence matrices $\mathbf{C}$ and $\mathbf{S}$ encode only grid connectivity and orientation, while all geometric scaling, material heterogeneity, anisotropy, and losses are contained in the constitutive matrices $\mathbf{M}_{\varepsilon}$, $\mathbf{M}_{\mu}$, and $\mathbf{M}_{\sigma}$. This exact separation between topology and metric/material information is the central reason why FIT provides a robust and performant framework for broadband wakefield simulations in complex three-dimensional accelerator geometries.
 
 \section{Material properties}
-Describe how the material properties are computed (permitticity, permeability and conductivity) as tensors and are allocated according to the geometry importer. Describe the natural presence of anisotropy and how they map the 3 components of the fields.
+Describe how the material properties are computed (permittivity, permeability and conductivity) as tensors and are allocated according to the geometry importer. Describe the natural presence of anisotropy and how they map the 3 components of the fields.
 
 \section{Boundary conditions}
 Define the different boundary conditions available in Wakis (PEC, PMC, Periodic, Absorbing Boundary conditions and in particular PML, use 1 subsection per BC). In each section describe how the different boundary conditions in Wakis affect each of the operators: PEC and PMC applied to the CURL, periodic through the Ds and Da diagonal matrices, PML as an adiabatic absorber applied to permittivity and conductivity.

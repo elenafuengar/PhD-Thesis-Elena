@@ -35,14 +35,16 @@
 \usepackage[small,hang,bf]{caption}    % caption options
 \usepackage{subcaption}   
 \usepackage{etoolbox}    % for \addto command
+\usepackage{esint} % fancy integrals
+\usepackage{acronym} % acronyms \ac
 
 %%% BIBLIOGRAPHY
 % The style used is APA. A list of available styles is available  at https://www.overleaf.com/learn/latex/Biblatex_bibliography_styles
 
 \usepackage[
 backend=biber,
-style=apa,
-sorting=nyt,
+style=numeric,
+sorting=none,
 doi=true,
 url=false,
 isbn=false,
@@ -89,6 +91,9 @@ backref=true
 \definecolor{cGreen}{HTML}{0033A0} % ch 5–6
 \definecolor{cPink}{HTML}{0033A0}  % ch 7
 \definecolor{cYellow}{HTML}{0033A0} % extra
+
+\definecolor{wakispink}{HTML}{FD68BA}
+\newcommand{\wakis}{\texttt{\textcolor{wakispink}{WAKIS}}\xspace}
 
 
 \newcommand{\chaptercolor}{%
@@ -205,6 +210,32 @@ backref=true
   {./}
 }
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Definitions
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+\usepackage{tcolorbox}
+\tcbuselibrary{theorems, skins, breakable}
+
+% Styled definition box using your chapter color
+% \newtcbtheorem[number within=chapter]{definition}{Definition}{
+%   enhanced,
+%   breakable,
+%   colback=\chaptercolor!5!white,
+%   colframe=\chaptercolor!60!black,
+%   fonttitle=\bfseries,
+%   separator sign none,
+%   description delimiters parenthesis,
+% }{def}
+
+\newtcbtheorem[number within=chapter]{definition}{Definition}{
+  enhanced,
+  colback=\chaptercolor!8!white,
+  colframe=\chaptercolor,
+  fonttitle=\bfseries\color{white},
+  attach boxed title to top left={yshift=-2mm, xshift=4mm},
+  boxed title style={colback=\chaptercolor},
+}{def}
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paragraph lists & compact enumerations
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
