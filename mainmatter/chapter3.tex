@@ -224,43 +224,613 @@ be constructed.
 \end{figure}
 
 The field distribution in the volume of interest is replaced by discrete field values on
-each computational grid cell $n$ cell. Rather than assigning all six field components to grid nodes (which causes problems at material interfaces where some components are discontinuous), the components of $\mathbf{E}$ are placed at the midpoints of cell edges $l_x$, $l_y$, 
-$l_z$, and the components of the magnetic field $\mathbf{H}$ pierce the center of each cell face $A_x$, $A_y$, $A_z$. Figure~\ref{fig:comp_cell} shows a schematic of the base computational cell $n$, together with the field component locations and their indexation.
+each computational grid cell $n$ cell. Rather than assigning all six field components to grid nodes (which causes problems at material interfaces where some components are discontinuous), the components of $\mathbf{E}$ are placed at the midpoints of cell edges $L= l_x, \ l_y, \ 
+l_z$, and the components of the magnetic field $\mathbf{H}$ pierce the center of each cell face $A = A_x, \ A_y, \ A_z$. Figure~\ref{fig:comp_cell} shows a schematic of the base computational cell $n$, together with the field component locations and their indexation.
 
-\subsubsection{A closer look at \glspl{dof} indexation}
-Notice the field indexes shown in the figure. When moving in the x direction, the lexicographic index $n$ increases by 1. Therefore the field components $E_{z, n+1}$ and $E_{y, n+1}$ would already belong to the next computational cell $(n+1)$. Note the described lengths $l_x,n^*, \ l_y,n^*, \ l_z,n^*,$, denoted with a star in the figure. The indexes would be correct if we use a uniformly spaced grid in all three dimensions. However, if different edge lengths per dimension are included in the numerical method, the right indexing for each length would be $l_x,n+N_xN_y , \ l_y,n+N_xN_y$ since they would belong to the next cell in z-direction ($n+N_xN_y$) and  $l_z,n+N_x,$, since this edge length would belong to the next cell in y-direction ($n+N_x$).
+\subsubsection*{Cell geometry}
+
+Each computational cell $n$, identified by the index triplet $(i,j,k)$, is
+fully described by its three edge lengths and three face areas. The edge lengths
+are the distances between adjacent grid nodes along each coordinate direction:
+\begin{equation}
+    l_{x,n} = x_{i+1} - x_i, \qquad
+    l_{y,n} = y_{j+1} - y_j, \qquad
+    l_{z,n} = z_{k+1} - z_k.
+    \label{eq:edge_lengths}
+\end{equation}
+The face area perpendicular to each coordinate axis is the product of the two
+transverse edge lengths:
+\begin{equation}
+    A_{x,n} = l_{y,n}\,l_{z,n}, \qquad
+    A_{y,n} = l_{z,n}\,l_{x,n}, \qquad
+    A_{z,n} = l_{x,n}\,l_{y,n}.
+    \label{eq:face_areas}
+\end{equation}
+These six scalar quantities per cell carry all the metric information needed to
+approximate the line and surface integrals in Maxwell's equations. They are
+assembled into two $3N \times 3N$ diagonal matrices, where $N = N_x N_y N_z$ is
+the total number of cells and the factor of three accounts for the three spatial
+components of each field quantity:
+\begin{equation}
+    \mathbf{D}_s = \mathrm{Diag}
+        \!\left(l_{x,1},\ldots,l_{x,N},\;
+                l_{y,1},\ldots,l_{y,N},\;
+                l_{z,1},\ldots,l_{z,N}\right),
+    \label{eq:Ds}
+\end{equation}
+\begin{equation}
+    \mathbf{D}_A = \mathrm{Diag}
+        \!\left(A_{x,1},\ldots,A_{x,N},\;
+                A_{y,1},\ldots,A_{y,N},\;
+                A_{z,1},\ldots,A_{z,N}\right).
+    \label{eq:Da}
+\end{equation}
+$\mathbf{D}_s$ will weight the line integrals of $\mathbf{E}$ and $\mathbf{H}$
+along cell edges, while $\mathbf{D}_A$ will weight the flux integrals of
+$\mathbf{B}$ and $\mathbf{D}$ through cell faces. Both matrices appear explicitly
+in the Maxwell Grid Equations derived in Sec.~\ref{sec:mge_final}.
+
+\subsubsection*{Field state vectors}
+
+Once the field components are allocated on the grid, they are assembled into
+global $3N$-vectors following the lexicographic ordering introduced in
+Sec.~\ref{sec:mge_integral}:
+\begin{equation}
+    \begin{aligned}
+        \mathbf{e} &= (E_{x,1},\ldots,E_{x,N},\;
+                       E_{y,1},\ldots,E_{y,N},\;
+                       E_{z,1},\ldots,E_{z,N})^t, \\[4pt]
+        \mathbf{h} &= (H_{x,1},\ldots,H_{x,N},\;
+                       H_{y,1},\ldots,H_{y,N},\;
+                       H_{z,1},\ldots,H_{z,N})^t.
+    \end{aligned}
+    \label{eq:field_vectors}
+\end{equation}
+These two vectors fully describe the electromagnetic state of the system at any
+given time. All spatial operations in the FIT framework --- curl, divergence, and
+their duals --- are expressed as matrix--vector products acting on $\mathbf{e}$
+and $\mathbf{h}$, replacing the continuous differential operators of Maxwell's
+equations.
+
+\subsubsection*{A closer look at \glspl{dof} indexation}
+Notice the field indexes shown in Fig.~\ref{fig:comp_cell}. When moving in the x direction, the lexicographic index $n$ increases by 1. Therefore the field components $E_{z, n+1}$ and $E_{y, n+1}$ would already belong to the next computational cell $(n+1)$. Note the described lengths $l_x,n^*, \ l_y,n^*, \ l_z,n^*,$, denoted with a star in the figure. The indexes would be correct if we use a uniformly spaced grid in all three dimensions. However, if different edge lengths per dimension are included in the numerical method, the right indexing for each length would be $l_x,n+N_xN_y , \ l_y,n+N_xN_y$ since they would belong to the next cell in z-direction ($n+N_xN_y$) and  $l_z,n+N_x,$, since this edge length would belong to the next cell in y-direction ($n+N_x$).
+
+% --- Section: Primal--dual cell staggering (Yee grid) ---
 
 \subsection{Primal--dual cell staggering}
 \label{sec:mge_yee}
 
-So far, the \glspl{dof} discretization has been kept as general as possible and could be 
-The Finite Integration Technique discretizes Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} by replacing line, surface, and volume integrals with discrete unknowns defined on a pair of staggered cell complexes: a \emph{primal} grid and its \emph{dual} grid. In FIT, the primal grid is a structured partition of $\Omega$ into orthogonal hexahedral cells, which is compatible with a Yee-type staggering of electric and magnetic quantities. The dual grid is constructed by shifting the primal grid by half a cell in each coordinate direction, such that:
-\begin{itemize}
-  \item primal edges are pierced orthogonally by dual faces,
-  \item primal faces are pierced orthogonally by dual edges,
-  \item primal cell volumes correspond to dual grid nodes and vice versa.
-\end{itemize}
+\begin{figure}[!tbh]
+    \centering
+    \includegraphics[width=\linewidth]{figures/3.3_yee_grid.pdf}
+    \caption{Pair of Yee-staggered primal and dual cells, showing the \gls{dof} allocation}
+    \label{fig:yee_cell}
+\end{figure}
 
-On these two grids, the electromagnetic degrees of freedom are allocated as integral quantities:
+The placement of electromagnetic field components in the cell discretization shown in Fig.~\ref{fig:comp_cell} is not arbitrary. Introduced by Yee~\cite{yee_numerical_1966} in 1966, the staggered-cell arrangement assigns electric and magnetic degrees of freedom to complementary geometric objects -- edges and faces -- of two interlocking grids offset by half a cell in each coordinate direction. This spatial staggering is the key ingredient that confers the scheme its numerical stability, second-order accuracy, and the ability to satisfy the divergence constraints of Maxwell's equations by construction, without any additional enforcement. In the Finite Integration Technique, this idea is elevated to a systematic algebraic framework by deriving the discrete operators directly from the integral form of Maxwell's equations on a \emph{primal--dual cell complex}. The schematic in Figure~\ref{fig:yee_cell} illustrates the Yee staggering. 
+
+The special field allocation generates a second, dual grid $\tilde{\mathbf{G}}$, in
+which the magnetic field components $\mathbf{H}$ are placed where the electric field
+components $\mathbf{E}$ reside in $\mathbf{G}$, and vice versa: the $\mathbf{H}$
+components pierce the centres of the primal faces, which coincide with the edges of the
+dual cells, while the $\mathbf{E}$ components lie on the primal edges, which coincide
+with the face centres of the dual cells. The dual grid is defined by:
+\begin{equation}
+    \tilde{\mathbf{G}} = \left\{(\tilde{x}_i,\,\tilde{y}_j,\,\tilde{z}_k);\quad
+        \tilde{x}_1 < \tilde{x}_i < \tilde{x}_I,\ i=2,\ldots,I-1;\ \ldots
+    \right\},
+\end{equation}
+with dual node coordinates located at the midpoints of the primal cell edges:
 \begin{align}
-e_i &:= \int_{L_i} \mathbf{E}\cdot d\mathbf{l}
-\qquad &&\text{(electric grid voltage on primal edge $L_i$)}, \label{eq:dof_e}\\
-h_j &:= \int_{\tilde L_j} \mathbf{H}\cdot d\mathbf{l}
-\qquad &&\text{(magnetic grid voltage on dual edge $\tilde L_j$)}, \label{eq:dof_h}\\
-b_k &:= \int_{A_k} \mathbf{B}\cdot d\mathbf{A}
-\qquad &&\text{(magnetic flux through primal face $A_k$)}, \label{eq:dof_b}\\
-d_\ell &:= \int_{\tilde A_\ell} \mathbf{D}\cdot d\mathbf{A}
-\qquad &&\text{(electric flux through dual face $\tilde A_\ell$)}, \label{eq:dof_d}\\
-j_\ell &:= \int_{\tilde A_\ell} \mathbf{J}\cdot d\mathbf{A}
-\qquad &&\text{(electric current through dual face $\tilde A_\ell$)}, \label{eq:dof_j}\\
-q_m &:= \int_{V_m} \rho\, dV
-\qquad &&\text{(charge in primal cell volume $V_m$)}. \label{eq:dof_q}
+    \tilde{x}_i &= \frac{x_{i+1}+x_i}{2}, \quad 1 \le i \le I-1,
+                    \qquad \tilde{x}_I = 0, \\
+    \tilde{y}_j &= \frac{y_{j+1}+y_j}{2}, \quad 1 \le j \le J-1,
+                    \qquad \tilde{y}_J = 0, \\
+    \tilde{z}_k &= \frac{z_{k+1}+z_k}{2}, \quad 1 \le k \le K-1,
+                    \qquad \tilde{z}_K = 0.
 \end{align}
-Collecting these unknowns into vectors $\mathbf{e}, \mathbf{h}, \mathbf{b}, \mathbf{d}, \mathbf{j}, \mathbf{q}$ yields the finite-dimensional representation used in Wakis.
+Notice how, due to the staggering, the last dual node coordinate must be set to zero.
+The dual grid has one fewer interior node than the primal grid in each direction: while
+the primal grid has $I$ nodes in $x$, the dual grid only has $I-1$ midpoints. The
+boundary node $\tilde{x}_I$ therefore has no corresponding primal interval to bisect,
+and is set to zero to indicate that it lies outside the computational domain. In this case, the selected boundary condition (see section \ref{}) takes over the role of closing the outermost dual cell.
 
+As shown in Figure \ref{fig:yee_cell}, each dual cell $n$ is therefore centered on a primal node, and its geometry is described
+by dual edge lengths and dual face areas defined in exact analogy with the primal
+quantities. The dual edge lengths connecting adjacent dual nodes are:
+\begin{equation}
+    \tilde{l}_{x,n} = \tilde{x}_{i+1} - \tilde{x}_i, \qquad
+    \tilde{l}_{y,n} = \tilde{y}_{j+1} - \tilde{y}_j, \qquad
+    \tilde{l}_{z,n} = \tilde{z}_{k+1} - \tilde{z}_k,
+\end{equation}
+and the dual face areas, perpendicular to each coordinate axis, are:
+\begin{equation}
+    \tilde{A}_{x,n} = \tilde{l}_{y,n}\,\tilde{l}_{z,n}, \qquad
+    \tilde{A}_{y,n} = \tilde{l}_{z,n}\,\tilde{l}_{x,n}, \qquad
+    \tilde{A}_{z,n} = \tilde{l}_{x,n}\,\tilde{l}_{y,n}.
+\end{equation}
+
+Analogously to Eqs.~\ref{eq:Ds} and \ref{eq:Da}, the dual edge lengths and face areas are assembled into the corresponding dual diagonal matrices $\tilde{\mathbf{D}}_s$ and $\tilde{\mathbf{D}}_A$:
+\begin{equation}
+    \tilde{\mathbf{D}}_s = \mathrm{Diag}
+        \!\left(\tilde{l}_{x,1},\ldots,\tilde{l}_{x,N},\;
+                \tilde{l}_{y,1},\ldots,\tilde{l}_{y,N},\;
+                \tilde{l}_{z,1},\ldots,\tilde{l}_{z,N}\right),
+\end{equation}
+\begin{equation}
+    \tilde{\mathbf{D}}_A = \mathrm{Diag}
+        \!\left(\tilde{A}_{x,1},\ldots,\tilde{A}_{x,N},\;
+                \tilde{A}_{y,1},\ldots,\tilde{A}_{y,N},\;
+                \tilde{A}_{z,1},\ldots,\tilde{A}_{z,N}\right).
+\end{equation}
+The four matrices $\mathbf{D}_s$, $\mathbf{D}_A$, $\tilde{\mathbf{D}}_s$,
+$\tilde{\mathbf{D}}_A$ together carry all the geometric information of the
+primal--dual grid pair, and will appear in the Maxwell Grid Equations derived
+in Sec.~\ref{sec:mge_final}.
+
+\begin{definition}{Yee grid}{yee_grid}
+A \emph{Yee grid} is a pair of staggered cell complexes -- a \emph{primal} grid $G$ and a \emph{dual} grid $\tilde{G}$ -- constructed on a structured orthogonal hexahedral partition of the computational domain $\Omega$. The \textbf{dual grid} is obtained by shifting the primal grid by half a cell in each coordinate direction, such that:
+\begin{itemize}
+  \item primal edges $L$ are pierced orthogonally by dual faces $\tilde{A}$,
+  \item primal faces $A$ are pierced orthogonally by dual edges $\tilde{L}$,
+  \item primal cell volumes $V$ centers correspond to dual grid nodes $\tilde{n}$ and vice versa.
+\end{itemize}
+Electric degrees of freedom are allocated on primal edges and dual faces; magnetic degrees of freedom on primal faces and dual edges. This interlocking structure ensures that the discrete curl and divergence operators satisfy the topological identities of Maxwell's equations exactly, independently of mesh resolution.
+\end{definition}
+
+% ---------------------------------
+
+\subsection{Curl $\mathbf{C}$ and divergence $\mathbf{S}$ operators }
+\label{sec:mge_operators}
+
+One of the principal advantages of the \gls{fit} formulation is that it discretizes
+the integral form of Maxwell's equations (see Eqs. ~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) directly into a set of sparse matrix operators whose entries take only the values $+1$, $-1$, or $0$. Rather than implementing the field updates as nested loops over grid indices --- as is typical in conventional \gls{fdtd} implementations --- the entire spatial discretization is encoded in the topology matrices $\mathbf{C}$, $\tilde{\mathbf{C}}$, $\mathbf{S}$, and $\tilde{\mathbf{S}}$, which act directly on vectors of field degrees of freedom. This representation stays close to the underlying physics: each matrix row corresponds to a concrete geometric operation, either a circulation integral around a cell edge loop or a flux integral over a cell face, in direct correspondence with the integral laws from which it is derived. At the same time, expressing the spatial operators as sparse matrix--vector products exposes the full potential for computational efficiency, enabling vectorized and cache-friendly evaluation on modern hardware without any modification to the mathematical structure of the equations.
+
+\subsubsection*{Curl operator}
+
+\begin{figure}[!tbh]
+    \centering
+    \includegraphics[width=\linewidth]{figures/3.4_yee_curl.pdf}
+    \caption{Schematic of the curl operation on a pair of Yee primal and dual cells,
+             showing the field quantities involved.}
+    \label{fig:yee_curl}
+\end{figure}
+
+The discrete curl operator is constructed by applying Faraday's law in integral form
+to every face of each primal cell. Consider the $z$-directed face of primal cell $n$:
+the circulation of $\mathbf{E}$ around its boundary involves the four tangential
+electric field components on the surrounding edges. As illustrated in Fig.~\ref{fig:yee_curl}, for the $z$-component of the primal curl one collects the contributions with their correct signs:
+
+\begin{equation}
+    (\mathbf{C}\,\mathbf{e})_{z,n} =
+        +E_{y,\,n+N_x N_y}
+        - E_{y,\,n+N_x N_y+1}
+        - E_{x,\,n+N_x N_y}
+        + E_{x,\,n+N_x(N_y+1)},
+\end{equation}
+
+where $N_x = I$ and $N_y = J$ are the number of primal nodes in the $x$ and $y$
+directions respectively, and the index offsets reflect the linear node numbering
+$n = 1 + (i-1)N_x + (j-1)N_x N_y$. Repeating this construction for all three face
+orientations and all $N$ cells yields the global primal curl matrix:
+\begin{equation}
+    \mathbf{C} =
+    \begin{pmatrix}
+         0          & -\mathbf{P}_z &  \mathbf{P}_y \\
+         \mathbf{P}_z &  0          & -\mathbf{P}_x \\
+        -\mathbf{P}_y &  \mathbf{P}_x &  0
+    \end{pmatrix},
+\end{equation}
+where the elementary difference matrices $\mathbf{P}_x$, $\mathbf{P}_y$,
+$\mathbf{P}_z$ encode the $\pm 1$ connectivity pattern between adjacent nodes along
+each coordinate direction (see Sec.~\ref{sec:mge_yee}).
+
+The dual curl operator $\tilde{\mathbf{C}}$ is constructed in exactly the same way,
+but now applied to the faces of the dual cells. Its role is to compute the circulation
+of $\mathbf{H}$ around each dual face, as required by Amp\`ere's law. Reading the
+signed field contributions from Fig.~\ref{fig:yee_curl}, the $x$-component of the
+dual curl at dual cell $\tilde{n}$ is:
+\begin{equation}
+    (\tilde{\mathbf{C}}\,\mathbf{h})_{x,\tilde{n}} =
+        + H_{y,\,n+N_x}
+        - H_{y,\,n+N_x+1}
+        - H_{x,\,n+1}
+        + H_{x,\,n+N_x+1},
+\end{equation}
+where the $\mathbf{H}$ components are indexed on the primal grid according to the
+staggering convention. A key algebraic property of the FIT discretization is that the
+dual curl matrix is simply the transpose of the primal curl matrix:
+\begin{equation}
+    \tilde{\mathbf{C}} = \mathbf{C}^t.
+\end{equation}
+This relation is not an approximation but an exact consequence of the primal--dual
+topology: every primal edge is shared by exactly two dual faces, and every dual edge
+is shared by exactly two primal faces, so the two circulation operators are each
+other's adjoint.
+
+\subsubsection*{Divergence operator}
+
+\begin{figure}[!tbh]
+    \centering
+    \includegraphics[width=\linewidth]{figures/3.5_yee_divergence.pdf}
+    \caption{Schematic of the divergence operation on a primal and dual cell.}
+    \label{fig:yee_divergence}
+\end{figure}
+
+The discrete divergence operator is obtained by applying Gauss's law in integral form
+to each cell, summing the signed normal flux components through all six faces. For
+the primal cell $n$, the net outward flux of $\mathbf{H}$ through its faces involves
+the six $\mathbf{H}$ components sitting at the face centres, as shown in
+Fig.~\ref{fig:yee_divergence}:
+\begin{equation}
+    (\mathbf{S}\,\mathbf{h})_n =
+        - H_{x,n} + H_{x,\,n+1}
+        - H_{y,n} + H_{y,\,n+N_x}
+        - H_{z,n} + H_{z,\,n+N_x N_y}.
+\end{equation}
+Assembling this for all $N$ primal cells gives the primal divergence matrix:
+\begin{equation}
+    \mathbf{S} = \bigl(\mathbf{P}_x\;\big|\;\mathbf{P}_y\;\big|\;\mathbf{P}_z\bigr),
+\end{equation}
+which maps the $3N$-vector of $\mathbf{H}$ components to an $N$-vector of net fluxes,
+one per primal cell. Enforcing $\mathbf{S}\,\mathbf{D}_A\,\mathbf{b} = 0$ ensures
+that the discrete magnetic flux is divergence-free by construction.
+
+The dual divergence operator $\tilde{\mathbf{S}}$ acts on the dual cells $\tilde{n}$
+in the same fashion, now accumulating the net outward flux of $\mathbf{E}$ through
+the six faces of each dual cell. From Fig.~\ref{fig:yee_divergence}:
+\begin{equation}
+    (\tilde{\mathbf{S}}\,\mathbf{e})_{\tilde{n}} =
+        - E_{x,n} + E_{x,\,n+1}
+        - E_{y,n} + E_{y,\,n+N_x}
+        - E_{z,n} + E_{z,\,n+N_x N_y},
+\end{equation}
+yielding the dual divergence matrix:
+\begin{equation}
+    \tilde{\mathbf{S}} =
+        \bigl(\mathbf{P}_x^t\;\big|\;\mathbf{P}_y^t\;\big|\;\mathbf{P}_z^t\bigr) = S^t
+\end{equation}
+Enforcing $\tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,(\dot{\mathbf{d}}+\mathbf{j})=0$
+expresses the discrete charge continuity equation on the dual grid.
+
+
+\subsection{Maxwell Grid Equations}
+\label{sec:mge_final}
+
+With the topological operators $\mathbf{C}$, $\tilde{\mathbf{C}}$, $\mathbf{S}$,
+$\tilde{\mathbf{S}}$ and the metric matrices $\mathbf{D}_s$, $\mathbf{D}_A$,
+$\tilde{\mathbf{D}}_s$, $\tilde{\mathbf{D}}_A$ established in the previous sections,
+all the ingredients are in place to derive the full set of \emph{Maxwell Grid
+Equations} (MGE). The procedure is the same for each equation: the corresponding
+integral Maxwell law is applied to a single cell, the integrals are approximated
+by the discrete field values allocated on its edges and faces, and the metric weights
+are separated from the topological $\pm 1$ connectivity to expose the matrix
+structure.
+
+% The field degrees of freedom are assembled into global $3N$-vectors following the
+% lexicographic ordering introduced in Sec.~\ref{sec:mge_integral}:
+% \begin{equation}
+%     \begin{aligned}
+%         \mathbf{e} &= (E_{x,1},\ldots,E_{x,N},\;
+%                        E_{y,1},\ldots,E_{y,N},\;
+%                        E_{z,1},\ldots,E_{z,N})^t, \\[4pt]
+%         \mathbf{h} &= (H_{x,1},\ldots,H_{x,N},\;
+%                        H_{y,1},\ldots,H_{y,N},\;
+%                        H_{z,1},\ldots,H_{z,N})^t.
+%     \end{aligned}
+%     \label{eq:field_vectors}
+% \end{equation}
+% with analogous vectors $\mathbf{b} = \mathbf{D}_\mu\,\mathbf{h}$ and
+% $\mathbf{d} = \mathbf{D}_\varepsilon\,\mathbf{e}$ for the flux densities, and
+% $\mathbf{j} = \mathbf{D}_\sigma\,\mathbf{e} + \mathbf{j}_\mathrm{s}$ for the
+% current density, where $\mathbf{j}_\mathrm{s}$ is the discrete beam source current
+% vector (see Sec.~\ref{sec:beam_source}). The material properties are encoded in the
+% diagonal matrices $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$, $\mathbf{D}_\sigma$,
+% whose entries hold the cell-averaged values of permittivity $\varepsilon$,
+% permeability $\mu$, and conductivity $\sigma$, allowing for piecewise-constant
+% material distributions across the grid.
+
+\subsubsection*{Faraday's law $\longrightarrow$ Primal Curl Equation}
+
+Applying Faraday's law~\eqref{eq:Maxwell:a} to the $z$-directed face of primal
+cell $n$:
+\begin{equation}
+    \oint_{\partial A_{z,n}} \mathbf{E} \cdot d\mathbf{s}
+    = -\iint_{A_{z,n}} \frac{\partial \mathbf{B}}{\partial t} \cdot d\mathbf{A}.
+\end{equation}
+The left-hand side is approximated by the four tangential $\mathbf{E}$ components
+on the surrounding primal edges, each weighted by the corresponding edge length.
+Reading the signed contributions from Fig.~\ref{fig:yee_curl}:
+\begin{align}
+    \oint_{\partial A_{z,n}} \mathbf{E} \cdot d\mathbf{s}
+    &\approx
+        + l_{x,\,n+N_x(N_y+1)}\, E_{x,\,n+N_x(N_y+1)}
+        - l_{x,\,n+N_xN_y}\, E_{x,\,n+N_xN_y} \nonumber\\
+    &\quad
+        + l_{y,\,n+N_xN_y}\, E_{y,\,n+N_xN_y}
+        - l_{y,\,n+N_xN_y+1}\, E_{y,\,n+N_xN_y+1},
+\end{align}
+
+while the right-hand side reduces to the single $\mathbf{B}$ component normal to
+the face, weighted by the face area and expressed in terms of $\mathbf{h}$ via the
+constitutive relation $\mathbf{b} = \mathbf{D}_\mu\,\mathbf{h}$:
+\begin{equation}
+    \iint_{A_{z,n}} \frac{\partial \mathbf{B}}{\partial t} \cdot d\mathbf{A}
+    \approx A_{z,n}\,\frac{\partial B_{z,n}}{\partial t}
+    = A_{z,n}\,\mu_n\,\frac{\partial H_{z,n}}{\partial t}.
+\end{equation}
+Repeating this for all three face orientations and all $N$ primal cells, and
+separating the topological $\pm 1$ pattern (encoded in $\mathbf{C}$) from the
+edge lengths (encoded in $\mathbf{D}_s$) and face areas (encoded in $\mathbf{D}_A$),
+yields the first Maxwell Grid Equation:
+\begin{equation}
+    \boxed{\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}
+        = -\mathbf{D}_A\,\mathbf{D}_\mu\,\frac{\partial \mathbf{h}}{\partial t}}
+    \label{eq:MGE:faraday}
+\end{equation}
+
+\subsubsection*{Amp\`ere--Maxwell law $\longrightarrow$ Dual Curl Equation}
+
+Applying Amp\`ere's law~\eqref{eq:Maxwell:b} to the $x$-directed face of dual
+cell $\tilde{n}$:
+\begin{equation}
+    \oint_{\partial \tilde{A}_{x,\tilde{n}}} \mathbf{H} \cdot d\mathbf{s}
+    = \iint_{\tilde{A}_{x,\tilde{n}}}
+        \frac{\partial \mathbf{D}}{\partial t} \cdot d\mathbf{A}
+    + \iint_{\tilde{A}_{x,\tilde{n}}} \mathbf{J} \cdot d\mathbf{A}.
+\end{equation}
+The left-hand side is approximated by the four tangential $\mathbf{H}$ components
+on the surrounding dual edges, weighted by the dual edge lengths. Reading from
+Fig.~\ref{fig:yee_curl}:
+\begin{align}
+    \oint_{\partial \tilde{A}_{x,\tilde{n}}} \mathbf{H} \cdot d\mathbf{s}
+    &\approx
+        + \tilde{l}_{y,\,n+N_x}\, H_{y,\,n+N_x}
+        - \tilde{l}_{y,\,n+N_x+1}\, H_{y,\,n+N_x+1} \nonumber\\
+    &\quad
+        - \tilde{l}_{z,\,n+1}\, H_{z,\,n+1}
+        + \tilde{l}_{z,\,n+N_x+1}\, H_{z,\,n+N_x+1},
+\end{align}
+
+while the right-hand side involves the normal $\mathbf{D}$ and $\mathbf{J}$
+components weighted by the dual face area, expressed in terms of $\mathbf{e}$ via
+$\mathbf{d} = \mathbf{D}_\varepsilon\,\mathbf{e}$:
+\begin{equation}
+    \iint_{\tilde{A}_{x,\tilde{n}}} \frac{\partial \mathbf{D}}{\partial t}
+        \cdot d\mathbf{A}
+    \approx \tilde{A}_{x,\tilde{n}}\,\varepsilon_n\,
+        \frac{\partial E_{x,\tilde{n}}}{\partial t}, \qquad
+    \iint_{\tilde{A}_{x,\tilde{n}}} \mathbf{J} \cdot d\mathbf{A}
+    \approx \tilde{A}_{x,\tilde{n}}\,J_{x,\tilde{n}}.
+\end{equation}
+Assembling over all three face orientations and all $N$ dual cells gives the second
+Maxwell Grid Equation:
+\begin{equation}
+    \boxed{\tilde{\mathbf{C}}\,\tilde{\mathbf{D}}_s\,\mathbf{h}
+    = \tilde{\mathbf{D}}_A\,\mathbf{D}_\varepsilon\,
+        \frac{\partial \mathbf{e}}{\partial t}
+    + \tilde{\mathbf{D}}_A\,\mathbf{j}}
+    \label{eq:MGE:ampere}
+\end{equation}
+
+\subsubsection*{Gauss's law for magnetism $\longrightarrow$ Primal Divergence Equation}
+
+Applying Gauss's law for magnetic fields~\eqref{eq:Maxwell:c} to primal cell $n$,
+the net outward magnetic flux through its six faces must vanish:
+\begin{equation}
+    \oiint_{\partial V_n} \mathbf{B} \cdot d\mathbf{A} = 0.
+\end{equation}
+Each face contributes one normal $\mathbf{B}$ component weighted by its primal face
+area, expressed in terms of $\mathbf{h}$ via $\mathbf{b} = \mathbf{D}_\mu\,\mathbf{h}$.
+Reading the signed contributions from Fig.~\ref{fig:yee_divergence}:
+
+\begin{align}
+    \oiint_{\partial V_n} \mathbf{B} \cdot d\mathbf{A}
+    &\approx
+        - A_{x,n}\,\mu_n\, H_{x,n}
+        + A_{x,\,n+1}\,\mu_{n+1}\, H_{x,\,n+1} \nonumber\\
+    &\quad
+        - A_{y,n}\,\mu_n\, H_{y,n}
+        + A_{y,\,n+N_x}\,\mu_{n+N_x}\, H_{y,\,n+N_x} \nonumber\\
+    &\quad
+        - A_{z,n}\,\mu_n\, H_{z,n}
+        + A_{z,\,n+N_xN_y}\,\mu_{n+N_xN_y}\, H_{z,\,n+N_xN_y}
+    = 0.
+\end{align}
+
+Assembling over all $N$ primal cells and separating topology from metric gives the
+third Maxwell Grid Equation:
+\begin{equation}
+    \boxed{\mathbf{S}\,\mathbf{D}_A\,\mathbf{D}_\mu\,\mathbf{h} = \mathbf{0}}
+    \label{eq:MGE:gauss_mag}
+\end{equation}
+
+\subsubsection*{Gauss's law for electricity $\longrightarrow$ Dual Divergence Equation}
+
+Applying Gauss's law for electric fields~\eqref{eq:Maxwell:d} to dual cell
+$\tilde{n}$, the net outward electric flux through its six faces equals the enclosed
+free charge:
+\begin{equation}
+    \oiint_{\partial \tilde{V}_{\tilde{n}}} \mathbf{D} \cdot d\mathbf{A}
+    = \iiint_{\tilde{V}_{\tilde{n}}} \rho \, dV.
+\end{equation}
+Each dual face contributes one normal $\mathbf{D}$ component weighted by its dual
+face area, expressed in terms of $\mathbf{e}$ via
+$\mathbf{d} = \mathbf{D}_\varepsilon\,\mathbf{e}$.
+Reading from Fig.~\ref{fig:yee_divergence}:
+\begin{align}
+    \oiint_{\partial \tilde{V}_{\tilde{n}}} \mathbf{D} \cdot d\mathbf{A}
+    &\approx
+        - \tilde{A}_{x,n}\,\varepsilon_n\, E_{x,n}
+        + \tilde{A}_{x,\,n+1}\,\varepsilon_{n+1}\, E_{x,\,n+1} \nonumber\\
+    &\quad
+        - \tilde{A}_{y,n}\,\varepsilon_n\, E_{y,n}
+        + \tilde{A}_{y,\,n+N_x}\,\varepsilon_{n+N_x}\, E_{y,\,n+N_x} \nonumber\\
+    &\quad
+        - \tilde{A}_{z,n}\,\varepsilon_n\, E_{z,n}
+        + \tilde{A}_{z,\,n+N_xN_y}\,\varepsilon_{n+N_xN_y}\,
+            E_{z,\,n+N_xN_y},
+\end{align}
+while the right-hand side is approximated by the total discrete charge $q_n$
+enclosed in the dual cell volume $\tilde{V}_{\tilde{n}}$. Assembling over all $N$
+dual cells gives the fourth Maxwell Grid Equation:
+\begin{equation}
+    \boxed{\tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,\mathbf{D}_\varepsilon\,
+        \mathbf{e} = \mathbf{q}}
+    \label{eq:MGE:gauss_el}
+\end{equation}
+where $\mathbf{q}$ is the $N$-vector of discrete free charges enclosed in each dual
+cell.
+
+\subsubsection*{Summary}
+
+The four Maxwell Grid Equations~\eqref{eq:MGE:faraday}--\eqref{eq:MGE:gauss_el}
+form a complete discrete system that is the exact grid-space counterpart of the
+continuous Maxwell equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}:
+
+\begin{table}[!htb]
+\centering
+\renewcommand{\arraystretch}{2.4}
+\begin{tabular}{l r c l}
+    \hline
+    & \textbf{Integral form} && \textbf{Maxwell Grid Equation} \\
+    \hline
+    Faraday \eqref{eq:Maxwell:a}
+        & $\displaystyle\oint_{\partial A} \mathbf{E}\cdot d\mathbf{s}
+          = -\iint_{A}\frac{\partial \mathbf{B}}{\partial t}\cdot d\mathbf{A}$
+        & $\longrightarrow$
+        & $\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}
+            = -\mathbf{D}_A\,\mathbf{D}_\mu\,
+              \dfrac{\partial \mathbf{h}}{\partial t}$ \\
+    Amp\`ere \eqref{eq:Maxwell:b}
+        & $\displaystyle\oint_{\partial A} \mathbf{H}\cdot d\mathbf{s}
+          = \iint_{A}\!\left(\frac{\partial\mathbf{D}}{\partial t}
+          +\mathbf{J}\right)d\mathbf{A}$
+        & $\longrightarrow$
+        & $\tilde{\mathbf{C}}\,\tilde{\mathbf{D}}_s\,\mathbf{h}
+            = \tilde{\mathbf{D}}_A\,\mathbf{D}_\varepsilon\,
+              \dfrac{\partial \mathbf{e}}{\partial t}
+            + \tilde{\mathbf{D}}_A\,\mathbf{j}$ \\
+    Gauss (mag.) \eqref{eq:Maxwell:c}
+        & $\displaystyle\oiint_{\partial V} \mathbf{B}\cdot d\mathbf{A} = 0$
+        & $\longrightarrow$
+        & $\mathbf{S}\,\mathbf{D}_A\,\mathbf{D}_\mu\,\mathbf{h} = \mathbf{0}$ \\
+    Gauss (el.) \eqref{eq:Maxwell:d}
+        & $\displaystyle\oiint_{\partial V} \mathbf{D}\cdot d\mathbf{A}
+          = \iiint_V \rho\,dV$
+        & $\longrightarrow$
+        & $\tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,\mathbf{D}_\varepsilon\,
+            \mathbf{e} = \mathbf{q}$ \\
+    \hline
+\end{tabular}
+\caption{The four Maxwell Grid Equations, each derived from the corresponding
+         integral Maxwell law by replacing continuous circulation and flux
+         integrals with discrete topological operators weighted by the metric
+         matrices of the primal--dual grid.}
+\label{tab:mge}
+\end{table}
+
+The separation between topology --- encoded in $\mathbf{C}$, $\tilde{\mathbf{C}}$,
+$\mathbf{S}$, $\tilde{\mathbf{S}}$ --- and metric --- encoded in $\mathbf{D}_s$,
+$\mathbf{D}_A$, $\tilde{\mathbf{D}}_s$, $\tilde{\mathbf{D}}_A$ --- together with
+the material properties encoded in $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$,
+$\mathbf{D}_\sigma$, is a defining feature of the FIT framework. The topological
+operators change only when the grid connectivity changes, while the metric and
+material matrices are the only quantities that need to be updated when the grid is
+refined or the material distribution is modified, making the method straightforward
+to implement and maintain.
+
+\subsection{Divergence conservation}
+
+An important algebraic identity satisfied by the Curl $C$ and the Divergence $S$ pair of operators is:
+\begin{equation}
+    \mathbf{S}\,\mathbf{C} = 0, \qquad
+    \tilde{\mathbf{S}}\,\tilde{\mathbf{C}} = 0,
+    \label{eq:divcurl}
+\end{equation}
+which is the discrete analogue of the vector identity
+$\mathbf{div}\,\mathbf{curl} \equiv 0$. This property holds exactly at the matrix
+level, independently of the mesh geometry. To see why, consider a single primal
+cell $n$ and compute the $n$-th row of $\mathbf{S}\,\mathbf{C}$ acting on
+$\mathbf{e}$. The primal divergence $\mathbf{S}$ sums the six face fluxes of
+$\mathbf{C}\,\mathbf{e}$, i.e.\ the six face circulations of $\mathbf{E}$.
+Each primal edge of cell $n$ is shared by exactly two faces of that same cell,
+and the two faces induce opposite circulation orientations on their shared edge,
+as illustrated in Fig.~\ref{fig:yee_divergence}. Taking the $z$-direction as an
+example, the contribution of edge $E_{z,n}$ enters the $x$-face circulation with
+a $+1$ and the $y$-face circulation with a $-1$:
+\begin{equation}
+    (\mathbf{S}\,\mathbf{C}\,\mathbf{e})_n
+    = \sum_{\text{faces of } n}
+      \underbrace{(\mathbf{C}\,\mathbf{e})_{\text{face}}}_{\text{circulation}}
+    = \sum_{\text{edges of } n}
+      \underbrace{(+1 - 1)}_{\text{opposite orientations}} E_{\text{edge}}
+    = 0
+\end{equation}
+Since this cancellation occurs for every edge of every primal cell, the full matrix
+product vanishes identically:
+\begin{equation}
+    \mathbf{S}\,\mathbf{C} = \mathbf{0}.
+\end{equation}
+The same argument applied to the dual grid gives $\tilde{\mathbf{S}}\,\tilde{\mathbf{C}} = \mathbf{0}$,
+and since $\tilde{\mathbf{C}} = \mathbf{C}^t$ and
+$\tilde{\mathbf{S}} = \mathbf{S}^t$, the two identities are in fact
+related by transposition:
+\begin{equation}
+    \tilde{\mathbf{S}}\,\tilde{\mathbf{C}}
+    = \mathbf{S}^t\,(\mathbf{C}^t)
+    = (\mathbf{C}\,\mathbf{S})^t
+    = \mathbf{0} 
+\end{equation}
+
+These identities have a direct physical consequence for both Gauss laws. Consider
+first the magnetic Gauss law~\eqref{eq:MGE:gauss_mag}. Taking the time derivative
+and substituting the Faraday MGE~\eqref{eq:MGE:faraday}:
+\begin{equation}
+    \frac{d}{dt}\left(\mathbf{S}\,\mathbf{D}_A\,\mathbf{D}_\mu\,\mathbf{h}\right)
+    = \mathbf{S}\,\mathbf{D}_A\,\mathbf{D}_\mu\,
+      \frac{\partial \mathbf{h}}{\partial t}
+    = -\mathbf{S}\,\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}
+    = \mathbf{0}.
+\end{equation}
+For the electric Gauss law~\eqref{eq:MGE:gauss_el}, taking the time derivative
+and substituting the Amp\`ere MGE~\eqref{eq:MGE:ampere}:
+\begin{equation}
+    \frac{d}{dt}\left(\tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,
+      \mathbf{D}_\varepsilon\,\mathbf{e}\right)
+    = \tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,\mathbf{D}_\varepsilon\,
+      \frac{\partial \mathbf{e}}{\partial t}
+    = \tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,
+      \frac{\partial \mathbf{d}}{\partial t}
+    = \tilde{\mathbf{S}}\left(
+        \tilde{\mathbf{C}}\,\tilde{\mathbf{D}}_s\,\mathbf{h}
+        - \tilde{\mathbf{D}}_A\,\mathbf{j}
+      \right)
+    = -\tilde{\mathbf{S}}\,\tilde{\mathbf{D}}_A\,\mathbf{j},
+\end{equation}
+
+where the last step uses $\tilde{\mathbf{S}}\,\tilde{\mathbf{C}} = \mathbf{0}$.
+This is precisely the discrete charge continuity equation: provided that the
+source current $\mathbf{j}$ satisfies charge conservation, the electric Gauss
+law is also preserved throughout the time evolution if it holds at $t = 0$.
+
+Both Gauss laws~\eqref{eq:MGE:gauss_mag} and~\eqref{eq:MGE:gauss_el} are
+therefore \emph{redundant} with respect to the two curl
+equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere}, in the sense that
+they are automatically satisfied for all $t > 0$ provided that the initial
+conditions are divergence-free and the source is charge-conserving. This is a
+direct consequence of the Yee staggering introduced in Sec.~\ref{sec:mge_yee},
+which ensures that the discrete curl and divergence operators are each other's
+adjoint by construction. In the FIT framework, this geometric property is
+elevated to an exact algebraic identity at the matrix level, independently of
+the mesh geometry and material distribution. The practical implication is
+significant: in a time-domain simulation it is sufficient to advance only the
+two curl equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere} in time,
+and the divergence constraints are guaranteed to be preserved without any
+additional enforcement or correction step.
 
 \section{Material properties}
-Describe how the material properties are computed (permittivity, permeability and conductivity) as tensors and are allocated according to the geometry importer. Describe the natural presence of anisotropy and how they map the 3 components of the fields.
+Describe the materials involved in the maxwell equations. specify the convention related to the trearment of complex permittivity and the distiction of conductivity sigma and dielectric losses epsilon''. Describe where the material properties are arranged in the computational cell according to maxwell's grid equations and yee staggering. Describe the concept of embedded boundaries inside the simulation domain and how they affect the computation of material properties. Review the methods of averaging materials when an embedded boundary crosses a computational cell (e.g., staircased, subpixel smoothing, and CST 's perfect boundary approximation). Describe how the material properties are computed (permittivity, permeability and conductivity) and arranged as tensors in MGE. Describe the natural presence of anisotropy in the FIT framework and how they map the 3 components of the fields.
 
 \section{Boundary conditions}
 Define the different boundary conditions available in Wakis (PEC, PMC, Periodic, Absorbing Boundary conditions and in particular PML, use 1 subsection per BC). In each section describe how the different boundary conditions in Wakis affect each of the operators: PEC and PMC applied to the CURL, periodic through the Ds and Da diagonal matrices, PML as an adiabatic absorber applied to permittivity and conductivity.
