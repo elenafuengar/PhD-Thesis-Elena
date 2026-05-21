@@ -497,38 +497,38 @@ expresses the discrete charge continuity equation on the dual grid.
 \subsection{Maxwell Grid Equations}
 \label{sec:mge_final}
 
-With the topological operators $\mathbf{C}$, $\tilde{\mathbf{C}}$, $\mathbf{S}$,
-$\tilde{\mathbf{S}}$ and the metric matrices $\mathbf{D}_s$, $\mathbf{D}_A$,
-$\tilde{\mathbf{D}}_s$, $\tilde{\mathbf{D}}_A$ established in the previous sections,
-all the ingredients are in place to derive the full set of \emph{Maxwell Grid
-Equations} (MGE). The procedure is the same for each equation: the corresponding
-integral Maxwell law is applied to a single cell, the integrals are approximated
-by the discrete field values allocated on its edges and faces, and the metric weights
-are separated from the topological $\pm 1$ connectivity to expose the matrix
-structure.
+All the ingredients are now in place to derive the full set of \emph{Maxwell Grid
+Equations} (MGE). Recalling the building blocks assembled in the previous sections:
+the field state vectors $\mathbf{e}$ and $\mathbf{h}$~\eqref{eq:field_vectors}
+collect all electric and magnetic degrees of freedom allocated on the primal cell
+edges and faces of the Yee grid (Sec.~\ref{sec:mge_yee}); the metric matrices
+$\mathbf{D}_s$, $\mathbf{D}_A$ (Eqs.~\eqref{eq:Ds}--\eqref{eq:Da}) and their dual
+counterparts $\tilde{\mathbf{D}}_s$, $\tilde{\mathbf{D}}_A$ carry the physical
+lengths and areas of the primal and dual cells; and the topological operators
+$\mathbf{C}$, $\tilde{\mathbf{C}}$, $\mathbf{S}$, $\tilde{\mathbf{S}}$
+(Sec.~\ref{sec:mge_operators}) encode the $\pm 1$ connectivity of the grid
+independently of its geometry. The discrete constitutive relations close the system
+by linking $(\mathbf{e}, \mathbf{h})$ to the flux density vectors $(\mathbf{d},
+\mathbf{b})$ and the current density $\mathbf{j}$:
+\begin{equation}
+    \mathbf{d} = \mathbf{D}_\varepsilon\,\mathbf{e}, \qquad
+    \mathbf{b} = \mathbf{D}_\mu\,\mathbf{h}, \qquad
+    \mathbf{j} = \mathbf{D}_\sigma\,\mathbf{e} + \mathbf{j}_\mathrm{s},
+    \label{eq:constitutive_discrete}
+\end{equation}
+where $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$, and $\mathbf{D}_\sigma$ are
+$3N \times 3N$ diagonal matrices encoding the cell-averaged permittivity,
+permeability, and conductivity of the medium, and $\mathbf{j}_\mathrm{s}$ is the
+impressed beam source current (see Sec.~\ref{sec:beam_source}). The construction
+and numerical treatment of these material matrices are discussed in
+Sec.~\ref{sec:materials}.
 
-% The field degrees of freedom are assembled into global $3N$-vectors following the
-% lexicographic ordering introduced in Sec.~\ref{sec:mge_integral}:
-% \begin{equation}
-%     \begin{aligned}
-%         \mathbf{e} &= (E_{x,1},\ldots,E_{x,N},\;
-%                        E_{y,1},\ldots,E_{y,N},\;
-%                        E_{z,1},\ldots,E_{z,N})^t, \\[4pt]
-%         \mathbf{h} &= (H_{x,1},\ldots,H_{x,N},\;
-%                        H_{y,1},\ldots,H_{y,N},\;
-%                        H_{z,1},\ldots,H_{z,N})^t.
-%     \end{aligned}
-%     \label{eq:field_vectors}
-% \end{equation}
-% with analogous vectors $\mathbf{b} = \mathbf{D}_\mu\,\mathbf{h}$ and
-% $\mathbf{d} = \mathbf{D}_\varepsilon\,\mathbf{e}$ for the flux densities, and
-% $\mathbf{j} = \mathbf{D}_\sigma\,\mathbf{e} + \mathbf{j}_\mathrm{s}$ for the
-% current density, where $\mathbf{j}_\mathrm{s}$ is the discrete beam source current
-% vector (see Sec.~\ref{sec:beam_source}). The material properties are encoded in the
-% diagonal matrices $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$, $\mathbf{D}_\sigma$,
-% whose entries hold the cell-averaged values of permittivity $\varepsilon$,
-% permeability $\mu$, and conductivity $\sigma$, allowing for piecewise-constant
-% material distributions across the grid.
+The derivation procedure is the same for each of the four MGE: the corresponding
+integral Maxwell law~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} is applied to a
+single primal or dual cell, the line and surface integrals are approximated by the
+discrete field values of $\mathbf{e}$ and $\mathbf{h}$ on the surrounding edges
+and faces, and the metric weights are separated from the topological $\pm 1$
+connectivity to expose the matrix--vector structure of the equation.
 
 \subsubsection*{Faraday's law $\longrightarrow$ Primal Curl Equation}
 
@@ -686,7 +686,7 @@ cell.
 
 The four Maxwell Grid Equations~\eqref{eq:MGE:faraday}--\eqref{eq:MGE:gauss_el}
 form a complete discrete system that is the exact grid-space counterpart of the
-continuous Maxwell equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}:
+continuous Maxwell equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}:, as shown linked together in \ref{tab:mge}
 
 \begin{table}[!htb]
 \centering
@@ -737,8 +737,7 @@ the material properties encoded in $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$,
 $\mathbf{D}_\sigma$, is a defining feature of the FIT framework. The topological
 operators change only when the grid connectivity changes, while the metric and
 material matrices are the only quantities that need to be updated when the grid is
-refined or the material distribution is modified, making the method straightforward
-to implement and maintain.
+refined or the material distribution is modified. This allows pre-computing most of the quantities before the first time-update, making this numerical method highly modular and efficient to implement--and maintain-- in a computational tool.
 
 \subsection{Divergence conservation}
 
@@ -829,8 +828,263 @@ two curl equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere} in time,
 and the divergence constraints are guaranteed to be preserved without any
 additional enforcement or correction step.
 
-\section{Material properties}
-Describe the materials involved in the maxwell equations. specify the convention related to the trearment of complex permittivity and the distiction of conductivity sigma and dielectric losses epsilon''. Describe where the material properties are arranged in the computational cell according to maxwell's grid equations and yee staggering. Describe the concept of embedded boundaries inside the simulation domain and how they affect the computation of material properties. Review the methods of averaging materials when an embedded boundary crosses a computational cell (e.g., staircased, subpixel smoothing, and CST 's perfect boundary approximation). Describe how the material properties are computed (permittivity, permeability and conductivity) and arranged as tensors in MGE. Describe the natural presence of anisotropy in the FIT framework and how they map the 3 components of the fields.
+\section{Electromagnetic material properties}
+\label{sec:materials}
+% Describe the materials involved in the maxwell equations. specify the convention related to the trearment of complex permittivity and the distiction of conductivity sigma and dielectric losses epsilon''. Describe where the material properties are arranged in the computational cell according to maxwell's grid equations and yee staggering. Describe the concept of embedded boundaries inside the simulation domain and how they affect the computation of material properties. Review the methods of averaging materials when an embedded boundary crosses a computational cell (e.g., staircased, subpixel smoothing, and CST 's perfect boundary approximation). Describe how the material properties are computed (permittivity, permeability and conductivity) and arranged as tensors in MGE. Describe the natural presence of anisotropy in the FIT framework and how they map the 3 components of the fields.
+
+The three material matrices $\mathbf{D}_\varepsilon$, $\mathbf{D}_\mu$,
+$\mathbf{D}_\sigma$ appearing in the discrete constitutive
+relations~\eqref{eq:constitutive_discrete} encode how the computational domain
+responds to the electromagnetic field. They are the discrete counterparts of the
+continuous material tensors $\underline{\underline{\varepsilon}}$,
+$\underline{\underline{\mu}}$, $\underline{\underline{\sigma}}$ introduced in
+Eq.~\eqref{eq:constitutive_continuum}, and their correct construction is essential
+for an accurate simulation. In accelerator components, the materials encountered
+are typically: metallic conductors such as copper or stainless steel forming the
+accelerator components walls and beam pipe; vacuum filling the beam chamber; and, in some
+cases, low-loss dielectrics such as ceramics or ferrites used in kickers, windows,
+or absorbers. Each of these materials interacts with the electromagnetic field in
+a qualitatively different way, and the three matrices must be constructed accordingly.
+
+\subsection{Definitions}
+\label{sec:materials_params}
+
+The units and physical meaning of each material parameter can be derived directly
+from a dimensional analysis of Maxwell's equations, which also clarifies which
+field quantity each parameter couples to.
+
+\subsubsection*{Permittivity $\varepsilon$}
+
+The permittivity $\varepsilon$ relates the electric displacement field $\mathbf{D}$
+to the electric field intensity $\mathbf{E}$ via $\mathbf{D} = \varepsilon\,\mathbf{E}$.
+From Gauss's law for electric fields~\eqref{eq:Maxwell:d}, the electric flux
+$\mathbf{D}$ through a closed surface equals the enclosed free charge, so
+$[\mathbf{D}] = \mathrm{C\,m^{-2}}$. Since $[\mathbf{E}] = \mathrm{V\,m^{-1}}$,
+dimensional consistency requires:
+\begin{equation}
+    [\varepsilon] = \frac{[\mathbf{D}]}{[\mathbf{E}]}
+    = \frac{\mathrm{C\,m^{-2}}}{\mathrm{V\,m^{-1}}}
+    = \mathrm{F\,m^{-1}}.
+\end{equation}
+In a material medium, the permittivity is expressed relative to the free-space
+value $\varepsilon_0 = 8.854 \times 10^{-12}\ \mathrm{F\,m^{-1}}$ as:
+\begin{equation}
+    \varepsilon = \varepsilon_r\,\varepsilon_0,
+\end{equation}
+where $\varepsilon_r \geq 1$ is the dimensionless relative permittivity, or
+dielectric constant, of the material. In vacuum, $\varepsilon_r = 1$.
+
+\subsubsection*{Permeability $\mu$}
+
+The permeability $\mu$ relates the magnetic flux density $\mathbf{B}$ to the
+magnetic field intensity $\mathbf{H}$ via $\mathbf{B} = \mu\,\mathbf{H}$.
+From Faraday's law~\eqref{eq:Maxwell:a}, the rate of change of magnetic flux
+$\mathbf{B}$ through a surface induces a circulation of $\mathbf{E}$ around its
+boundary, so $[\mathbf{B}] = \mathrm{T} = \mathrm{V\,s\,m^{-2}}$. Since
+$[\mathbf{H}] = \mathrm{A\,m^{-1}}$, dimensional consistency requires:
+\begin{equation}
+    [\mu] = \frac{[\mathbf{B}]}{[\mathbf{H}]}
+    = \frac{\mathrm{V\,s\,m^{-2}}}{\mathrm{A\,m^{-1}}}
+    = \mathrm{H\,m^{-1}}.
+\end{equation}
+In a material medium, the permeability is expressed relative to the free-space
+value $\mu_0 = 4\pi \times 10^{-7}\ \mathrm{H\,m^{-1}}$ as:
+\begin{equation}
+    \mu = \mu_r\,\mu_0,
+\end{equation}
+where $\mu_r \geq 1$ is the dimensionless relative permeability. Most dielectric
+and conducting materials are non-magnetic with $\mu_r = 1$; ferromagnetic
+materials can have $\mu_r \gg 1$.
+
+\subsubsection*{Conductivity $\sigma$ and dielectric losses $\varepsilon''$}
+
+While $\varepsilon$ and $\mu$ couple to $\mathbf{D}$ and $\mathbf{B}$
+respectively, the conductivity $\sigma$ governs the \emph{free current} response
+of the material. It relates the conduction current density $\mathbf{J}$ to the
+electric field via Ohm's law, $\mathbf{J} = \sigma\,\mathbf{E}$, and therefore
+enters Amp\`ere's law~\eqref{eq:Maxwell:b} as an explicit current source, distinct
+from the displacement current $\partial\mathbf{D}/\partial t$. From
+Amp\`ere's law, $[\mathbf{J}] = \mathrm{A\,m^{-2}}$, so:
+\begin{equation}
+    [\sigma] = \frac{[\mathbf{J}]}{[\mathbf{E}]}
+    = \frac{\mathrm{A\,m^{-2}}}{\mathrm{V\,m^{-1}}}
+    = \mathrm{S\,m^{-1}}.
+\end{equation}
+In electromagnetic simulations, losses can be accounted for either through
+$\sigma$ or through a complex-valued permittivity
+$\hat{\varepsilon} = \varepsilon' - i\varepsilon''$, where the imaginary part
+$\varepsilon''$ captures polarisation losses in the dielectric. The choice
+between the two representations is, in many cases, a matter of convention.
+However, in time-domain simulations of accelerator components, the fields are driven by a
+passing beam (see secgtion beam source), physically considered a line current on the longitudinal plane. Therefore, the conduction current $\mathbf{j}$ needs to be evolved alongside the
+fields $\mathbf{e}$ and $\mathbf{h}$ as an independent quantity, making it
+essential to retain $\sigma$ as an explicit, separate parameter that directly
+enforces Ohm's law in each time step (see section timestep).
+
+To see how the two loss mechanisms enter the formulation, we start from the
+frequency-domain Amp\`ere's law written with the complex permittivity
+$\hat{\varepsilon} = \varepsilon' - i\varepsilon''$:
+\begin{equation}
+    \nabla \times \mathbf{H} 
+    = \underbrace{i\omega\varepsilon'\,\mathbf{E}}_{\partial\mathbf{D}/\partial t}
+    + \underbrace{\left(\omega\varepsilon'' + \sigma\right)}_{\text{total loss}}
+      \mathbf{E},
+    \label{eq:ampere_freq}
+\end{equation}
+where the displacement current couples to $\mathbf{D} = \varepsilon'\,\mathbf{E}$,
+while both loss terms appear as currents proportional to $\mathbf{E}$. Applying
+the inverse Fourier transform and recalling that
+$i\omega \leftrightarrow \partial/\partial t$, the time-domain Amp\`ere law reads:
+\begin{equation}
+    \nabla \times \mathbf{H}
+    = \varepsilon'\,\frac{\partial \mathbf{E}}{\partial t}
+    + \underbrace{\omega\varepsilon''\,\mathbf{E}}_{\text{dielectric loss}}
+    + \underbrace{\sigma\,\mathbf{E}}_{\text{Ohmic loss}},
+    \label{eq:ampere_time}
+\end{equation}
+showing that both loss mechanisms appear as source terms proportional to
+$\mathbf{E}$. The two contributions are physically distinct:
+\begin{mydescription}
+    \item[Ohmic losses ($\sigma$):] free charge carriers accelerated by
+    $\mathbf{E}$ collide with the lattice, dissipating energy as heat. This
+    mechanism is frequency-independent and is the dominant loss in metallic
+    conductors such as copper cavity walls.
+
+    \item[Dielectric losses ($\varepsilon''$):] bound charges cannot follow
+    rapid field oscillations, leading to a phase lag between $\mathbf{D}$ and
+    $\mathbf{E}$. This mechanism is inherently frequency-dependent --- note
+    the factor $\omega$ in Eq.~\eqref{eq:ampere_time} --- and is the dominant
+    loss in dielectric materials such as ceramics or ferrites.
+\end{mydescription}
+The ratio of total loss to energy storage defines the loss tangent, a quantity
+commonly tabulated in material datasheets:
+\begin{equation}
+    \tan\delta
+    = \frac{\omega\varepsilon'' + \sigma}{\omega\varepsilon'}.
+    \label{eq:loss_tangent}
+\end{equation}
+A medium is said to be \emph{dispersive} if its material properties
+$\varepsilon(\omega)$, $\mu(\omega)$, or $\sigma(\omega)$ depend on frequency,
+so that different spectral components of a broadband signal propagate and
+attenuate at different rates. The dielectric loss term $\omega\varepsilon''$ is
+a clear example: it cannot be represented by a single frequency-independent
+parameter, and any attempt to absorb it into a constant $\sigma_\mathrm{eff}$
+is valid only at a single frequency.
+
+The time-domain solver \wakis developed in this thesis treats all material
+properties $\varepsilon'$, $\mu$, and $\sigma$ as frequency-independent
+constants, and does not model dispersive media. Under this non-dispersive
+assumption, $\varepsilon''$ does not appear as a separate parameter, and all
+resistive losses are encoded solely in the conductivity matrix $\mathbf{D}_\sigma$.
+This is appropriate for the materials typically encountered in the accelerator
+structures simulated here: the cavity walls are made of highly conductive metals
+(copper, stainless steel) whose properties are weakly dispersive over the
+frequency range of interest, and the beam channel is vacuum, which is perfectly
+non-dispersive.
+
+\subsection{Embedded boundaries and material averaging}
+
+\begin{figure}[!tbh]
+    \centering
+    \includegraphics[width=\linewidth]{figures/3.6_materials.pdf}
+    \caption{Schematic of the allocation of materials in a primal grid cell $n$. A neighboring dual cell is shown dashed.}
+    \label{fig:materials}
+\end{figure}
+
+Following the Yee staggering introduced in Sec.~\ref{sec:mge_yee}, the material
+properties are allocated on the same geometric objects as the field components they
+couple. Since $\mathbf{D}_\varepsilon$ and $\mathbf{D}_\sigma$ act on $\mathbf{e}$,
+whose components live on primal cell edges, the permittivity and conductivity values
+are associated with primal edges. Similarly, since $\mathbf{D}_\mu$ acts on
+$\mathbf{h}$, whose components live on primal cell faces, the permeability values
+are associated with primal faces. This co-location of field and material on the same
+geometric object is what allows the diagonal structure of the material matrices and
+ensures consistency with the discrete curl operators.
+
+In practice, material interfaces rarely align with the computational grid. When the
+boundary between two materials crosses a computational cell, that cell contains a
+mixture of material properties, and a single representative value must be assigned
+to the edge or face that carries the field degree of freedom. This is the
+\emph{embedded boundary} problem, and its treatment directly affects the accuracy
+and convergence of the simulation.
+
+\begin{figure}[!tbh]
+    \centering
+    \includegraphics[width=\linewidth]{figures/3.7_embedded_bc.pdf}
+    \caption{Embedded boundary intersecting 3 computational grid cells, leaving different material regions}
+    \label{fig:embedded}
+\end{figure}
+
+
+Several strategies exist for computing the effective material value within a cut
+cell:
+
+\begin{mydescription}
+    \item[Staircased approximation:] the interface is approximated by the nearest
+    cell boundary, so each cell is assigned a single homogeneous material. This
+    is the simplest approach and preserves the standard diagonal matrix structure,
+    but introduces a first-order geometrical error that limits convergence to
+    first order near curved or oblique interfaces.
+
+    \item[Subpixel smoothing:] the effective material property of a cut cell is
+    computed as a weighted average of the two materials, with weights proportional
+    to the volume fractions on each side of the interface. For permittivity, a
+    common choice is:
+    \begin{equation}
+        \varepsilon_\mathrm{eff} = f\,\varepsilon_1 + (1-f)\,\varepsilon_2,
+    \end{equation}
+    where $f \in [0,1]$ is the fill fraction of material 1 in the cell. This
+    recovers second-order convergence in smooth regions and is straightforward
+    to implement, but the optimal averaging rule depends on the orientation of
+    the interface relative to the field component.
+
+    \item[Enlarged cell technique]
+    
+    \item[Perfect Boundary Approximation (PBA):] the method implemented in CST
+    Studio Suite, which represents curved or oblique material boundaries
+    at sub-cell resolution by modifying the effective edge lengths and face areas
+    used in the curl operator, rather than averaging the material properties
+    themselves. This preserves the exactness of the topological operators while
+    incorporating the true interface geometry into the metric matrices, achieving
+    second-order accuracy without staircasing artefacts.
+
+
+    
+\end{mydescription}
+
+\subsection{Material matrices as rank-2 tensors}
+
+In the most general case, the material properties at each cell are anisotropic:
+the response of the medium to a field component along one axis depends on the
+orientation of that component relative to the geometric axes of the
+material. In the continuous setting this is expressed by the full tensor
+$\underline{\underline{\varepsilon}}$. In the FIT framework, anisotropy arises
+\emph{naturally} from the structure of the Yee grid: because the three components
+of $\mathbf{e}$ are associated with edges oriented along $x$, $y$, and $z$
+respectively, and each component is coupled only to the material value along its
+own direction, the diagonal blocks of $\mathbf{D}_\varepsilon$ already separate
+the three directions:
+\begin{equation}
+    \mathbf{D}_\varepsilon =
+    \begin{pmatrix}
+        \mathbf{D}_{\varepsilon_x} & 0 & 0 \\
+        0 & \mathbf{D}_{\varepsilon_y} & 0 \\
+        0 & 0 & \mathbf{D}_{\varepsilon_z}
+    \end{pmatrix},
+\end{equation}
+where $\mathbf{D}_{\varepsilon_x}$, $\mathbf{D}_{\varepsilon_y}$,
+$\mathbf{D}_{\varepsilon_z}$ are $N \times N$ diagonal matrices holding the
+cell-averaged permittivity seen by the $x$-, $y$-, and $z$-directed electric
+field components respectively. The same block structure applies to $\mathbf{D}_\mu$
+and $\mathbf{D}_\sigma$. For an isotropic material,
+$\mathbf{D}_{\varepsilon_x} = \mathbf{D}_{\varepsilon_y} = \mathbf{D}_{\varepsilon_z}
+= \varepsilon\,\mathbf{I}$, recovering the scalar case. For a uniaxial or fully
+anisotropic material, the three blocks carry different values, allowing the
+simulation to capture direction-dependent responses without any modification to
+the topological operators $\mathbf{C}$, $\tilde{\mathbf{C}}$, $\mathbf{S}$,
+$\tilde{\mathbf{S}}$.
+
+% highlight that for higer order effects such as Kerr etc the material matrcies would not be diagonal anymore.
 
 \section{Boundary conditions}
 Define the different boundary conditions available in Wakis (PEC, PMC, Periodic, Absorbing Boundary conditions and in particular PML, use 1 subsection per BC). In each section describe how the different boundary conditions in Wakis affect each of the operators: PEC and PMC applied to the CURL, periodic through the Ds and Da diagonal matrices, PML as an adiabatic absorber applied to permittivity and conductivity.
