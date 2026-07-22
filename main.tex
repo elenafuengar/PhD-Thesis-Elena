@@ -91,7 +91,21 @@ titlepage=on,           % own page for each title page
 \backmatter
 
 \input{acronyms}
-\makeglossaries
+\input{glossary}
+
+
+\addcontentsline{toc}{chapter}{List of Acronyms}
+\printglossary[
+    type=\acronymtype,
+    title=List of Acronyms
+]
+
+\glsaddall[type={main}]
+\addcontentsline{toc}{chapter}{Glossary of Terms}
+\printglossary[
+    type=main,
+    title=Glossary of Terms
+]
 
 \addcontentsline{toc}{chapter}{List of Figures}
 \listoffigures

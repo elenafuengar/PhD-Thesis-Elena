@@ -12,3 +12,87 @@
   \vspace{0.5cm}
 \end{center}
 
+\section{Methodology}
+
+% The numerical validation of the code was performed to systematically validate the different modules and features included in the solver pipeline, comparing it to analytical formulas and to different numerical codes -- both open source and commercial. The results include comparison with simple, analytical cases against textbook formulas when possible. Since the Wakefield solver built in this thesis is also an electromagnetic solver, it can be used to compute some optic difraction cases, and compared to established open source codes like MEEP  However, most of the scenarios in which the code needs to be validated -- simulation of accelerator components -- are cases that cannot be solved analytically and therefore need to be compared to stablished numerical codes. The figures of merit, beyonf the electromagnetic fields, are the wake potential and impedance describing the excited electromagnetic wkefields with a passing particle beam, both in the longitudinal and transverse plane. The only codes capable of performing long-range simulations of accelerator components are under license: CST Studio Wakefield, Gdfidl and ACE3P -- being the CST studio one the only license available during this project. However, for loss-less structures, we can couple the Wakis wakefield postprocessing with the open source code WarpX to have a further validation of electromagnetic fields. The results will be shown in order of complexity, and therefore including and validating more and more features in the code's simulation pipeline.
+
+\section{Validation of electromagnetic fields}
+% The numerical method core is tested under different initial conditions, EM sources, boundary conditions and material regions to verify its validity against analytical formulas and open source numerical used to study electromagnetic scattering and optics codes like MEEP and EMcLAW
+
+\subection{Analytical pillbox cavity resonance}
+
+% Validation against analytical formula of initial conditions,time-stepping scheme
+
+% (analytical formulas for E and H fields inside a pillbox for different TE TM modes)
+
+\subsection{Gaussian Wavepacket through dielectric barriers}
+
+% Validation against analytical predictions of boundary conditions, material regions and energy of transmitted vs reflected waves. Comparison with numerical code EMcLaW
+
+% (simulation energy formulas)
+
+\subsection{Planewave reflecting on dielectric or PEC sphere}
+% Validation of material regions in presence of staircasing, validation of refracted power and comparison with computational code MEEP.
+
+% (Mye scattering formulas)
+
+\subsection{Validation longitudinal wakefields and impedances}
+% Validation of the entire pipeline, from CAD import to wake potential and impedances. It is fundamental to validate this figures of merit, since they feed the longitudinal beam dynamic studies and are source of beam-induced heating of the accelerator devices.
+
+\subsection{Loss-less cubic pillbox cavity}
+% Simplest accelerator cavity, where we can have the computational hexahedral mesh conformal to the cavity walls, removing the uncertainty of the meshing to retrieve the cavities main figures of merit, being the resonant frequency of the cavity modes, and the shunt impedance or quality factor for a certain wakelength. The computed wake potential should not show any decay since the walls are considered perfectly conducting. In this section the fields will be compared to the commercial code CST Studio and also the open source code WarpX. This is the only case that can be compared to WarpX since it includes embedded boundaries but onle between vacuum and PEC materials. Also, The way of including the beam current in WarpX is through current deposition on the domain from a PIC solver of the beam particles -- which involves some numerical differences comapred to Wakis and CST.
+
+% (analytical formulas for pillbox cavity resonances R, f, Q)
+
+% In this cavity, the effect of having a non-ultrarelativistic particle beam was also studied, separating the device impedance and retrieving the direct and indirect space charge impedance from the simulation for different beam relativistic beta and comparing them to CST studio.
+
+% (transient time factor theory)
+
+\subsection{Low-conductive cubic pillbox cavity}
+% For all the benchmarks shown before, only the permittivity and the permeability tensors where involved in the calculation of wakefields. In this example, we maintain the mesh conformal geometry while introducing the conductivity tensor in the update equations, that will induce the wakefield decay mecanism thwogh energy loss transferred from the resonating electromagnetic fields in the cavity to the conductive material of the cavity shell.
+
+\subsection{Loss-less and lossy beam pipe}
+% The previous example showcases a long-range wakefield simulation, in which the resonant wakefields ring in the vacuum volume for a long time, revealing narrowband impedance resonances. However, it is crucial to study as well a simple, smooth beam pipe, in which the fields do not resonate, providing a broadband impedance (a fastly decaying wake). 
+
+% (Analytical formula for resistive wall impedance and wake potential).
+
+% First, a perfectly conductive beampipe is studied, for different beam energies. A PEC pipe with an ultrarelativistic beam should give an impedance equal to 0, but when the beam energy is lower, the direct and indirect space charge impedance becomes relevant.
+
+% Second, the losses are introduced, studying the impact on the pipe thickness on the final results and comparing them with CST studio aa well as the analytic formula.
+
+\subsection{Conductive accelerator cavity}
+% This section increases the degree of complexity by having a non mesh-conformal structure, with smooth curved shapes that will be penalized by the staircasing approximation. With this geometry, we can test and benchmark the impact of the meshing and allocation of materials at the interface between the material regions, and the validity of the CAD importing algorithms. Furthermore, it continues to validate the conductivity implementation, revealing the need for surface impedance boundary approximation for a certain frequency range of conductivities. The simulation is also extended to above pipe cutoff frequencies, showing the absorbing capabitilies of the open boundaries implemented through the adiabatic absorber PML.
+
+% For this cavity, we also include the wake extrapolation to fully decayed impedance with IDDEFIX, a power loss estimation with BIHC, and a performance comparison to the commercial CST studio vs Wakis computing backends: single core CPU, single core GPU, multrithreading, multi-processing and multi-GPU.
+
+\section{Validation of transverse wake potential and impedance}
+
+% The transverse wake potential and impedance are computed from the longitudinal components validated above. However, it is critical to validate them in particular, since they have a great impact in the transverse beam dynamics, generating single bunch and multi-bunch beam instabilities. 
+
+\subsection{Transverse wakefields on an accelerator cavity}
+% Continuing the example of the previous section but moving into the transverse plane validation. 
+
+% (explanation of dipolar and quadrupolar impedance)
+
+% (transverse resonance formula R, f, Q)
+
+% Wake extrapolation in the transverse plane
+
+
+\subsection{LHC corrugated bellows and their shielding}
+
+% A good example of well defined transverse impedance are the LHC bellows, that gives, bellow pipe cutoff, a constant transverse dipolar imaginary impedance contribution due to the corrugations in the bellows.
+
+% (explain LHC bellows geometry and use in the LHC)
+
+% If left un-shielded, the impedance of all the bellows in the machine is large enough to trigger the strong headtail instability for a single bunch with the intensity per bunch target, due to impedance induced tune-shift. This bellows however, can be shielded by means of RF fingers, that ensure the electrical continuity between the vacuum chamber pipe transition tube and effectively block the electromagnetic field to interact with the bellow corrugations, consequently reducing the imaginary impedance contribution. In this section the simulation of an unshielded bellow and a shielded bellow is presented, together with the corresponding CST wakefield comparison. A simplified assesment impact on the beam dynamics is also included. This example was used as a teaching tutorial for the 2026 JUAS school.
+
+\section{Application to Muon Collider Studies}
+
+% (Explain the muon collider project briefly). This studies were perform by independent users of Wakis code.
+
+\subsection{Study of beryllium window in MuCol RF cavities}
+% Credits to C. Barbagallo
+
+\subsection{Study of counter-rotating beams in RF Cavity impedances}
+% Credits to E. Lamb

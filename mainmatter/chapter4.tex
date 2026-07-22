@@ -3,5 +3,69 @@
 \chapter{Overview of Wakis}
 \label{ch::chapter4}
 
-\section{Title of section}
-\subsection{Title of subsection}
+\begin{center}
+  \begin{minipage}{0.5\textwidth}
+    \begin{small}
+      In which the code design and architecture choices, together with specific features, algorithms and their implementation will be discussed
+    \end{small}
+  \end{minipage}
+  \vspace{0.5cm}
+\end{center}
+
+% In Chapter 3, the numerical method chosen for the development of this wakefield solver was formally introduced, namely the Finite Integration Technique. This numerical method is the one chosen by the standard and commercial Wakefield solvers used over the last 30 for calculation of beam coupling impedance in arbitrary 3D accelerator structures. Together with the fundamental numerical method schemes described to be able to solve Maxwell's equations in time domain, is the code architecture and design to efficiently implement such equations. Furthermore, to be able to solve these equations in arbitrary geometries and materials, new algorithms need to be developed in order to fill the material regions in the simulation domain. Due to the high computational cost of this simulations, computational optimization such as memory management, domain splitting for multi processing, and GPU compatibility were also explored and implemented during this thesis. Furthermore, new approaches to cut simulation time and predict long-range wakefields were developed to 
+
+% The next step in the development is to take all the equations and numerical formalism and find the most optimal algorithms that allow to implement it in a programming computational language. Beyond the implementation of the equations, several features are required to manage the data flow between the user and the result, from UI design and input handling, to visualization of 3D results and computation of figures of merit. Finally, together with the implementation of the equations and necessary features, it is the code architecture and design: how to make it modular, readable and maintainable. This comprises the version control and code-quality procedures and workflows adopted for users and developers to use and contribute to the code in the most optimal and long-term safe way.
+
+\section{Numerical method implementation}
+
+\subsection{Construction of numerical grid}
+
+\subsection{Construction of Curl operators}
+
+\subsection{Memory arrangement of electromagnetic quantities}
+
+\subsection{Time-stepping optimization with GPU-aware MPI}
+
+\section{CAD geometry importing}
+
+\subsection{Retrieval of cells inside the imported solids}
+
+\subsection{Allocation of material tensors}
+
+\subsection{Sub-cell smoothing}
+
+\subsection{Mesh refinement}
+
+\section{Wakefield and impedance calculation}
+
+\subsection{Calculation of wake potential and impedance}
+
+\subsection{Calculation of frequency-domain monitors}
+
+\subsection{Calculation of beam-induced power loss maps}
+
+\subsection{Wakefield time-domain extrapolation using Evolutionary algorithms}
+
+\subsection{Wake potential to wake function conversion}
+
+\section{Visualization and output of results}
+
+\subsection{Inspection methods before the simulation}
+
+\subsection{On-the-fly plotting of electromagnetic quantities}
+
+\subsection{Loading and saving of results}
+
+\subsection{Diagnostics and post-processing}
+
+\section{Open-source version control and code-quality}
+
+\subsection{GitHub workflow and coding practices}
+
+\subsection{Interactive examples suite}
+
+\subsection{Automatic testing suite}
+
+\subsection{Package documentation}
+
+\section{Community adoption and activity metrics}
