@@ -4,19 +4,221 @@
 \label{ch::chapter3}
 
 \begin{center}
-  \begin{minipage}{0.5\textwidth}
-    \begin{small}
-      In which the theoretical introduction and state of the art on the numerical calculation of electromagnetic wakefields and impedances will be detailed
-    \end{small}
-  \end{minipage}
-  \vspace{0.5cm}
+\begin{minipage}{0.5\textwidth}
+\begin{small}
+In which the theoretical introduction and state of the art on the numerical calculation of electromagnetic wakefields and impedances will be
+detailed
+\end{small}
+\end{minipage}
+\vspace{0.5cm}
 \end{center}
 
+
 \section{Beam-coupling impedance computation challenges}
+% Brief recap of the state of the art + statement of current solver's limitations
+In this section, the state-of-the art of wakefield and impedance simulations will be discussed, and the present computation challenges will
+be explained. This challenges, together with current solver's limitations, will expose the motivation to build a new wakefield solver, that
+within the open-source framework will allow to address present and future impedance simulation requirements.
+
+\subsection{State of the art of impedance simulations}
+
+The evaluation of beam-coupling impedance and wakefields are critical in the design and operation of particle accelerators. As charged
+particle beams traverse accelerator structures, interactions with geometric discontinuities and material inhomogeneities generate \gls{em}
+fields---known as wakefields---that can degrade beam stability, cause beam-induced heating, and limit machine performance
+\cite{metral_impedance_2020}. The frequency-domain counterpart of these interactions is the beam-coupling impedance, an intrinsic property
+of each component used to quantify wakefield effects. In order to correcly predict impedance effects on beam stability and on machine
+heating, an accurate, fullwave (meaning both long-range narrowband impedance resonances and short-range broadband sources coming from
+resistive wall) evaluation of the beam-coupling impedance of the main accelerator components is required.
+
+Analytical methods provide accurate impedance predictions for simplified structures such as resistive walls \cite{yokoya_resistive_1993,
+migliorati_resistive_2019}, RF cavities \cite{hofmann_analytic_1990, jensen_rf_2014}, and transitions such as tapers or steps
+\cite{yokoya_impedance_1990, stupakov_low_2007, palumbo_wake_1995}. However, for realistic accelerator components with complex geometries,
+the full three-dimensional solution of Maxwell's equations \cite{maxwell_viii_1997} is required.
+
+Maxwell's equations can be solved numerically in either frequency or time domain, and several discretization approaches have been developed.
+Among the most widely used methods are the \gls{fdtd} method, the \gls{fem}, and the \gls{fvtd} method. These techniques differ primarily in
+the formulation of the governing equations (differential or weak form), the choice of basis functions, and the handling of material
+interfaces and boundary conditions.
+
+In the frequency domain, for lossless and source-free structures, the problem reduces to an eigenmode formulation, as used in CST Eigenmode,
+HFSS, or ACE3P's Omega3P. In contrast, time-domain solvers offer full-wave impedance characterization by directly computing Maxwell's
+Equations in integral (see Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) or differential form - the latter commonly known as Finite
+Difference Time Domain (FDTD) method. Commercial solvers such as CST Wakefield, GDFiDL, and closed-source ECHO3D~\cite{zagorodnov_echo4d}
+and PBCI~\cite{Lau:1182975} report to use the \gls{fit}
+\cite{weiland_finite_2003}, while ACE3P's T3P employs the \gls{fem} \cite{candel_ace3p_2010}.
+
+Several 3D open-source solvers implement full-wave time-domain methods, such as Meep
+\cite{oskooi_meep_2010} and WarpX \cite{fedeli_pushing_2022}, both based on the
+\gls{fdtd} method \cite{yee_numerical_1966}, and EMcLaW \cite{moreno_emclaw_2021},
+which uses a \gls{fvtd} Godunov scheme. However, these tools lack key features needed for beam-coupling impedance calculations--namely;
+native \gls{cad} geometry support, advanced material modeling, or wakefield-tailored post-processing.
+
+Therefore, in the field of beam-coupling impedance simulations in time-domain, there is, at the time of this thesis, no open-source
+alternative capable of treating arbitrarily shaped 3D accelerator components and provide a fullwave, long-range converged impedance result.
+In addition to this, the field is facing increasing challenges when it comes to performing simulations with the currently available tools.
+
+\subsection{Challenges from future accelerator projects}
+% Introduction to FCC project and Muon collider project
+
+Despite a more than 30 years long tradition and development of Wakefield solvers, impedance evaluation remains a challenging topic. This
+challenges are brought to the surface even more in the regime of future accelerator projects, that push the boundaries of current particle
+accelerator designs. At CERN, among the different alternatives for the LHC and HL-LHC successor, two main projects have been discussed.
+
+Considered CERN's first option as a collider successor is the Future Circular Collider (FCC) project. The FCC is a proposed ~91 km circular
+collider to be built at CERN, succeeding the LHC in a much larger tunnel beneath the Geneva region. It is planned in two stages: FCC-ee, an
+electron-positron collider for precision Higgs, electroweak, and top-quark physics starting in the 2040s, followed by FCC-hh, a
+proton-proton collider reaching energies around 100 TeV to directly search for new physics beyond the Standard Model.
+
+A more long-term and first of its kind collider is the Muon collider project, part of the (part of the broader International Muon Collider
+Collaboration, IMCC). The Muon Collider Project is a design study for a future particle collider that would smash muons and anti-muons
+together at multi-TeV energies. Because muons are much heavier than electrons, they lose far less energy to synchrotron radiation, making a
+compact, high-energy lepton collider possible — but their short (2.2 microsecond) lifetime demands extremely fast production, cooling, and
+acceleration.
+
+\subsubsection*{FCC impedance challenges}
+% Cite FCC papers by Chiara and Carlo
+One of the current challenges, in particular for future high energy colliders such as the FCC, is the challenging design parameters, already
+in the electron positron FCC-ee collider regime. The simulation of accelerator components for FCC-ee is heavily computationally demanding
+due to the short design bunch length of 4 to 12 mm. As explained in Chapter 2, the bunch length determines the frequency range excited by
+the passing bunch in Wakefield simulations. The shorter the bunch length, the wider the frequency spectrum excited, following Fourier
+Transform principles. Since this, very short, passing bunch needs to be resolved by the simulation mesh (as a rule of thumb, by at least 20
+cells per wavelength), this leaves simulation mesh cells in the longitudinal direction of bellow a mm, in accelerator components that can
+reach the length of meters.
+
+Furthermore, accelerator components are often designed with highly conductive materials (i.e., Copper) to reduce their impedance. This means
+slowly decaying wakefields, that increase the needed simulation length (or wakelength, in the Wakefield jargon) to the Km range in order to
+fully resolve the amplitude of impedance resonances. Finally, the design beam pipe aperture is quite large with respect to the design bunch
+length. This has a critical consequence: some electromagnetic modes excited by the passing bunch will no longer stay resonating in the
+accelerator device, but will be able to travel and propagate through the beam pipe above the so-called cutoff frequency of the beampipe.
+This includes a new challenge, the possibility of cross-talk between accelerator components, which would require full control of the
+solver's open-boundary conditions implemented to simulate and understand such complex challenge.
+
+The FCC has another key design aspect to take into account: the machine is being designed to have very high beam current, with high number
+of bunches and bunch population (11200 and 2.17e11 p/b, respectively, for the Z-mode, at the time of the writing of this manuscript). This
+regime, together with the design huge machine circumference of 91 km, increases the accuracy demands for the calculation of beam-coupling
+impedances due to tight constrains in terms of beam stability and beam-induced heating.
+
+\subsubsection*{Muon Collider Impedance challenges}
+% Cite Elias and Erik's papers
+
+Continuing with future accelerator projects, the Muon Collider also adds new challenges to Wakefield simulations, that cannot be handled in
+an straightforward way by current commercial and non commercial available solvers. One example is the so-called impedance in matter, a new
+regime for wakefield and impedance that needs to be studied within the Muon Collider project.
+
+During ionization cooling, muons propagate inside matter rather than through vacuum, creating the need to further extend analytical
+formalism. This formalism, based on a field matching technique [CITE], has been recently extended to include material-filled geometries
+through which the beam can traverse through. The formalism predicts that the presence of impedance resonances with a predictable periodicity
+when the beam travserses a dielectric absorber material region. This resonances are attenuated if conductive losses are included in the
+model, but remain a significant impedance contribution compared to the only-vacuum case [CITE].
+
+This extended analytical formalism needs to be validated through numerical simulations. However, current commercial solvers do not offer the
+possibility to have the beam current traversing materials other than vacuum. One particular case is the design of Muon collider RF cavities
+in the muon cooling channel. The copper RF cavities include beryllium windows in the longitudinal direction at the cavity entrance and exit.
+The goal of this absorbing windows is to perform a 6D ionization cooling in order to reduce the muon emittance by several orders of
+magnitude, while the RF cavities are there to restore the longitudinal momentum lost in the absorbers [CITE].
+
+This regime is challenging both due to the presence of the absorbers, and the fact that the beam cannot be considered ultra-relativistic.
+Since the muon relativistic factor $\beta$ ranges from 0.88 to 0.92, the total impedance simulated will include the space charge (SC)
+contribution, which needs to be separated from the cavity-driven impedance. Simulations of non-ultra relativistic beam are challenging and
+only very advance Wakefield solvers such as CST Wakefield solver can perform such simulations. However, this isolation of the SC
+contribution to impedance represent another challenge that current electromagnetic solvers do not provide.
+
+\subsection{Challenges in present particle accelerators}
+% Cite Chiaras paper and me & Leo's IPAC paper and me & Carlo's HB paper
+
+Not only new accelerators pose challenges to beam-coupling impedance simulations. As described in Chapter 2, present high energy and high
+intensity particle accelerators suffer from impedance-driven component damage that can cause machine downtime and instrumentation failure,
+as is the case for the LHC and its accelerator injector chain. As the beam current increases and new intensities are reached, more
+impedance-driven problems arise. Therefore, being able to understand, model and predict impedance-driven element failure is essential to
+operate accelerators at such demanding regimes, especially in the coming HL-LHC era.
+
+A recent example are the SPS BWS failure, that caused the sublimation of the 4 BWS measurement wires overnight due to high intensity
+operation. The problem had to be treated with urgency, with a new design developed based on Wakefield simulations that focused on reducing
+the beam-induced heating on the wire element.
+
+Another recent example is the LHC Warm Vacuum interconnecting modules. These modules include thin, highly conductive fingers that ensure the
+electromagnetic continuity between the accelerator beampipe and the element transition tube, shielding the corrugated bellow structure
+behind them. The bellows are needed to accomodate thermal stress driven expansions and compressions in the accelerator, but the contribution
+to the impedance is too large to leave unshielded. However, this thin elements are susceptible to change overtime due to external factors,
+ending in a configuration far from the stipulated design. This non-conformities, increase the impedance and therefore the beam induced
+heating on the device. This beam-induced heating can likely be non-uniform over the device's individual components. If due to the
+composition of the different resonant modes, the heating is localized, it can lead to the damage or in the case of the LHC Warm Vacuum
+modules, the melting and plasticizing of some components, in an effect known as the impedance loop. New impedances can lead to higher
+beam-induced power loss on the device, causing thermomechanical stresses that further change (and likely worsen) the device's impedance.
+
+\subsection{Key features of next-generation Wakefield solvers}
+
+So far, fullwave impedance simulations of 3D accelerator components with arbitrary geometry and conductive or dispersive materials has only
+been possible via black box like commerical solvers. Although they've been developed over 30 years, and are well stablished and benchmarked,
+their lack of transparency makes them rigid and stuck in time. Beside this, they represent a single point of failure for complex impedance
+evaluations. The impedance field is evolving, and demanding a solver capable of being extendable to tackle newly arising impedance
+challenges.
+
+In order to develop CERN's in-house know-how on electromagnetic simulations, In alignment with CERN's open source mission, this project
+started to set the stepping stone of a modern Wakefield solver, transparent and accessible to the accelerator community, that can be
+enlarged by gathering impedance evaluation expertise from within CERN and different research institutions, by fostering collaboration within
+an open source software development framework. It is worth mentioning that this project arrives just when the AI generation in code
+development starts to rise. LLM models can help physicists and engineers with little knowledge on code development understand written code
+and bridges the transition between user and developer. Open source code can also be easily fed to LLMs to be able to create digital twins of
+accelerator components, automatise simulation steps and apply simulation based design modifications faster.
+
+\subsubsection*{Wakis project evolution and roadmap}
+
+Under these premises, the design route for the solver developed in the present thesis, WAKIS, was stablished. The project started as a
+post-processing module attached to WarpX FDTD solver, to compute wake potential and impedance from WarpX pre-computed fields [CITE ipac22].
+Since WarpX did not include the material tensors, and the beam current had to be modeled via PIC current deposition of millions of
+macroparticles, (which is not exactly very computationally friendly), plus WarpX open-boundaries (adjusted PML [CITE J LUC]) showed imporant
+limitations when the beam was injected or modes were excited above cutoff, the idea of starting a new solver from scratch arouse and gave
+birth to this PhD topic.
+
+Being able to improve and add new physics models to tackle e.g impedance in matter and element cross-talk, the aforementioned impedance
+challenges highligths the high demands on computational memory to achieve an extremely fine and accurate mesh to describe all the relevant
+geometry details, and calculation speed to be able to conclude these simulations in reasonable time and be able to iterate on the
+accelerator components design. This is why, in this thesis work, one of the focuses was on computational speed and memory management, in
+particular making the implementation GPU compatible -- a first timer in the field of Wakefield simulations.
+
+In order to produce the stepping stone of a Wakefield solver, the numerical method chosen to follow is the one trusted by the commercial
+solvers that have proven to be the most accurate so far for impedance evaluations: The Finite Integration Technique (FIT). This choice is
+also motivated by the fact that there is no available open-source solver that implements this numerical formalism. The FIT formalism
+discretizes Maxwell's equations in integral form, translating circulation and volume intregrals into large sparse matrix operators. This has
+the crucial advantage over loop-based FDTD of being continous in memory and therefore GPU computation friendly. Furthermore, the addition of
+embedded boundaries that will delimit different material region areas in the computational domain becomes more stratghtforward, since the
+numerical formulation includes rank-3 material tensors. Finally, the addition of the passing beam current, crucial for Wakefield
+simulations, reduces to adding an external field current source as a time-dependent initial condition.
+
+
+\begin{figure}
+\centering
+\includegraphics[width=1\linewidth]{figures/f3.1_WakisFeatures.pdf}
+\caption{Table showing the key features needed for a complete Wakefield solver and their availability across different commercial and open-source options}
+\label{fig:Wakisfeatures}
+\end{figure}
+
+
+Figure \ref{fig:Wakisfeatures} shows the identified key features that our next-generation Wakefield solver needs to have and the progress
+achieved during this PhD thesis work. In order to progress in the field of impedance simulations, a modern solver needs to be open-source
+and completely transparent to the user, allowing for continuous improvement and extendability. Among the most promising open source options
+WarpX[CITE] and EMcLAW[CITE], do not include (or they are not mature enough) some of the fundamental features to perform wakefield
+simulations of 3D accelerator components, such as CAD geometry import, material losses, the injection of the beam excitation and the
+computation of long-range wakefields. The closed-source code ECHO4D represents a great alternative for short-range wakefield simulations,
+with a very solid CAD import from STL formatted geometry [CITE]. Thanks to the co-moving window and the multithreading capabilities, it is
+computationally very efficient, even if it is not GPU accelerated. However, does not include material losses and the co-moving window
+approach is not meant for long-range wakefield simulations [CITE]. Among the commercial solvers CST Wakefield and Gdfidl, the missing key
+features are the GPU acceleration and a transparent Python interface for the user. In particular Gdfidl forces a uniform mesh and also uses
+the co-moving window approach, meant for short-range wakefield simulations. From the table, it is clear that the most complete option is CST
+Wakefield solver, including most of the required fundamental features. It is the most stablished and benchmarked solver, and the go-to
+choice at CERN.
+
+The proposed new Wakefield solver Wakis developed in this thesis, has been developed with these key features in mind, achieving great
+progress in most of them during this 3-year development period. Built mainly in Python and benefiting from open-source and trusted Python
+libraries such as Numpy and Scipy, it showcases not only the feasibility of developing such tool, but also the future perspectives of
+improvement and surpassing stagnated commercial options.
+
+\newpage
 
 \section{The Finite Integration Technique}
 
-\section{The computational grid $G$} 
+\section{The computational grid $G$}
 
 \subsection{The computational cell $n$ quantities}
 
