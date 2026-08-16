@@ -16,6 +16,7 @@
 \usepackage{longtable}   % tables spanning more than one page
 \usepackage{booktabs}    % nicer horizontal rules in tables
 \usepackage{ltablex}
+\usepackage{float}
 \usepackage{setspace}
 \usepackage{tikz}                % drawing custom shapes
 \usepackage{graphicx,graphics}   % packages to manage images
@@ -24,9 +25,6 @@
 \usepackage{ragged2e} 
 \usepackage{comment} 
 \usepackage{blindtext}
-\usepackage[backref=page]{hyperref}
-\usepackage[acronym,nonumberlist]{glossaries}  % package for list of acronyms
-\makeglossaries
 \usepackage[a4paper]{geometry}
 \usepackage{parskip}     % paragraph spacing (suppress indentation)
 \usepackage{fancyhdr}    % personalizar encabezado
@@ -137,7 +135,7 @@ backref=true
 % Customize document
 % --------------------------
 % Define the geometry of the document
-\newgeometry {top=30mm, bottom=28mm, inner=35mm, outer=25mm}
+\newgeometry {top=30mm, bottom=28mm, inner=30mm, outer=30mm}
 %\newgeometry{top=22mm,bottom=28mm,inner=35mm,outer=25mm} % from EPFL
 
 \setlength{\parskip}{10pt}   % Change the default value
@@ -151,6 +149,8 @@ backref=true
 % }
 
 \usepackage{hyperref}
+\usepackage[acronym,nonumberlist]{glossaries}  % package for list of acronyms
+\makeglossaries
 
 % default (frontmatter etc.)
 \hypersetup{colorlinks=true, linkcolor=black, citecolor=black, urlcolor=black}
@@ -175,6 +175,12 @@ backref=true
 	\fancyhead[EL]{\color{\chaptercolor} \bfseries \nouppercase{\leftmark}}
  	\fancyfoot[EL,OR]{\thepage}
 %    \fancyfoot[C]{\thepage}
+
+% --- Footnote spacing control ---
+% Source - https://tex.stackexchange.com/a/141938
+% Posted by karlkoeller
+% Retrieved 2026-08-16, License - CC BY-SA 3.0
+\addtolength{\skip\footins}{8mm}
 
 \renewcommand{\contentsname}{Table of Contents}
 
@@ -229,14 +235,31 @@ backref=true
 %   description delimiters parenthesis,
 % }{def}
 
-\newtcbtheorem[number within=chapter]{definition}{Definition}{
+% \newtcbtheorem[number within=chapter]{definition}{Definition}{
+%   enhanced,
+%   colback=\chaptercolor!8!white,
+%   colframe=\chaptercolor,
+%   fonttitle=\bfseries\color{white},
+%   attach boxed title to top left={yshift=-2mm, xshift=4mm},
+%   boxed title style={colback=\chaptercolor},
+% }{def}
+
+\newtcolorbox{definition}[2]{
   enhanced,
   colback=\chaptercolor!8!white,
   colframe=\chaptercolor,
   fonttitle=\bfseries\color{white},
-  attach boxed title to top left={yshift=-2mm, xshift=4mm},
-  boxed title style={colback=\chaptercolor},
-}{def}
+  title={#1},
+  attach boxed title to top left={
+    yshift=-2mm,
+    xshift=4mm
+  },
+  boxed title style={
+    colback=\chaptercolor
+  },
+  label={def:#2},
+}
+
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Paragraph lists & compact enumerations
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -346,26 +369,62 @@ backref=true
   {0.5em}
   {}
 
-% Sections: all caps, no bold
 \titleformat{\section}
-  {\normalfont\Large\bfseries}
+  {\normalfont\LARGE\bfseries}
   {\color{\chaptercolor}\thesection}
   {0.7em}
   {}
 
 \titleformat{\subsection}
-  {\normalfont\large\bfseries}
+  {\normalfont\Large\bfseries}
   {\color{\chaptercolor}\thesubsection}
   {0.7em}
   {}
 
 \titleformat{\subsubsection}
-  {\normalfont\normalsize\bfseries}
+  {\normalfont\large\bfseries}
   {\color{\chaptercolor}\thesubsubsection}
   {0.7em}
   {}
   
 % Spacing (tight/clean)
-\titlespacing*{\section}{0pt}{2.5ex plus .5ex minus .2ex}{1.5ex}
-\titlespacing*{\subsection}{0pt}{2.0ex plus .4ex minus .2ex}{1.2ex}
-\titlespacing*{\subsubsection}{0pt}{1.5ex plus .3ex minus .2ex}{1.0ex}
+% \titlespacing*{\section}{0pt}{2.5ex plus .5ex minus .2ex}{1.5ex}
+% \titlespacing*{\subsection}{0pt}{2.0ex plus .4ex minus .2ex}{1.2ex}
+% \titlespacing*{\subsubsection}{0pt}{1.5ex plus .3ex minus .2ex}{1.0ex}
+
+% Source - https://tex.stackexchange.com/a/21985
+% Posted by egreg, modified by community. See post 'Timeline' for change history
+% Retrieved 2026-08-16, License - CC BY-SA 3.0
+
+\widowpenalties 1 10000
+\raggedbottom
+
+
+% % Heading spacing:
+% % {left}{space before}{space after}
+% \titlespacing*{\section}
+%   {0pt}
+%   {3.0ex plus 1.2ex minus .5ex}
+%   {1.5ex plus .4ex minus .2ex}
+
+% \titlespacing*{\subsection}
+%   {0pt}
+%   {2.5ex plus 1.0ex minus .5ex}
+%   {1.2ex plus .3ex minus .2ex}
+
+% \titlespacing*{\subsubsection}
+%   {0pt}
+%   {2.0ex plus .8ex minus .3ex}
+%   {1.0ex plus .3ex minus .2ex}
+
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% % Figure spacing
+% %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% % Caption spacing
+% \setlength{\abovecaptionskip}{1pt plus 2pt minus 0.5pt}
+% \setlength{\belowcaptionskip}{1pt plus 1pt minus 0.5pt}
+
+% % Spacing between floats and body text
+% \setlength{\textfloatsep}{10pt plus 3pt minus 5pt}
+% \setlength{\intextsep}{10pt plus 2pt minus 4pt}

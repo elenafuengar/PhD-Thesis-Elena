@@ -16,6 +16,27 @@
 
 % The next step in the development is to take all the equations and numerical formalism and find the most optimal algorithms that allow to implement it in a programming computational language. Beyond the implementation of the equations, several features are required to manage the data flow between the user and the result, from UI design and input handling, to visualization of 3D results and computation of figures of merit. Finally, together with the implementation of the equations and necessary features, it is the code architecture and design: how to make it modular, readable and maintainable. This comprises the version control and code-quality procedures and workflows adopted for users and developers to use and contribute to the code in the most optimal and long-term safe way.
 
+% \subsubsection{The Wakis project pillars}
+
+% \gls{wakis}~\cite{de_la_fuente_garcia_wakis_2025} began as a post-processing module attached to WarpX's \gls{fdtd} solver, computing wake
+% potential and impedance from WarpX's pre-computed fields~\cite{de_la_fuente_generalized_2023}. Since WarpX lacked material tensors, modeled the beam current only via \gls{cad}-free PIC current deposition of millions of macroparticles---computationally costly---and its open boundaries (an adjusted \gls{pml}~\cite{VAY2000511, lehePhysRevE.106.045306}) showed difficulties to deal with the injection of the analytic beam current or with evanescent modes near cutoff~\cite{de_la_fuente_generalized_2023}, the idea of a new solver built from scratch took shape, giving rise to this PhD topic.
+
+% Together with the identified key features, four design principles guided this new solver:
+
+% \begin{description}
+% \item \textbf{Open-source approach.} In line with CERN's open-source mission and its goal of building in-house electromagnetic-simulation expertise, \gls{wakis} is designed to be transparent and accessible to the wider accelerator community. An open, collaborative framework lets impedance-evaluation expertise from CERN and other institutions be harmonized and poured into a single tool, letting it grow beyond a single developer or institution. It also arrives as AI-assisted code development becomes mainstream: LLMs can help physicists and engineers with limited coding experience read and extend open-source code, build digital twins of accelerator components, and automate simulation and design-iteration steps---opportunities closed-source tools cannot offer.
+
+% \item \textbf{Trusted numerical method.} The numerical method underlying \gls{wakis} is the \gls{fit}, the formalism trusted by the commercial solvers proven most accurate for impedance evaluations, and one with no existing open-source implementation. \gls{fit} discretizes Maxwell's equations in integral form into large sparse matrix operators, which---unlike the loop-based \gls{fdtd}---are contiguous in memory. Its formulation naturally includes spatially dependent, possibly anisotropic material properties through rank-2 material tensors, allowing to include solids with different materials in the simulation. It is the go-to numerical method for the available Wakefield solvers, as it simplifies the addition of the passing beam current excitation to a time-dependent external source term.
+
+% \item \textbf{Modularity and maintainability.} \gls{wakis} is written in Python, chosen as an entry-level, widely adopted language that lowers the barrier for new contributors and users alike. The code follows modern software-engineering practices---modular design, version control, continuous integration and testing, and documented, interactive examples---to keep the solver maintainable and extendable well beyond this thesis. Chapter 4 details this design and the resulting code-quality infrastructure.
+
+% \item \textbf{Memory and computation performant.} Extending \gls{wakis} to new physics---e.g.\ impedance in matter or component cross-talk---demands an extremely fine, accurate mesh to capture geometry detail, and fast execution to complete simulations and iterate on component design in reasonable time. Computational speed and memory management were therefore a central focus of this thesis, in particular making the implementation \gls{gpu} compatible---a first for Wakefield solvers in this field.
+% \end{description}
+
+% The proposed \gls{wakis} solver has been developed with these four principles in mind, achieving strong progress on most of them over this
+% three-year period. Built mainly in Python and benefiting from trusted open-source libraries such as NumPy and SciPy, it demonstrates not
+% only the feasibility of such a tool, but the potential to improve on, and eventually surpass, stagnated commercial options.
+
 \section{Numerical method implementation}
 
 \subsection{Construction of numerical grid}

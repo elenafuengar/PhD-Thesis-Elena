@@ -6,7 +6,7 @@ A4paper,                % paper size A4
 twoside,                % onesite or twoside printing
 openright,              % doublepage cleaning ends up right side
 chapterprefix=true,     % prefix for chapter marks
-12pt,                   % font size
+12 pt,                  % font size
 headings=normal,        % size of headings
 titlepage=on,           % own page for each title page
 ]{book}
@@ -58,7 +58,8 @@ titlepage=on,           % own page for each title page
 
 \selectlanguage{english}
 
-\setcounter{tocdepth}{3}		% define depth of toc
+\setcounter{tocdepth}{2}		% define depth of toc
+\setcounter{secnumdepth}{3}
 \tableofcontents				% display table of contents
 
 \cleardoublepage
@@ -100,7 +101,6 @@ titlepage=on,           % own page for each title page
     title=List of Acronyms
 ]
 
-\glsaddall[type={main}]
 \addcontentsline{toc}{chapter}{Glossary of Terms}
 \printglossary[
     type=main,
@@ -118,7 +118,7 @@ titlepage=on,           % own page for each title page
 \printbibliography[title=Bibliography, heading=bibintoc]
 
 \appendix
-\chapter{Annexes}  
+\chapter{Appendix}  
 
 % **************************************************
 % End of document

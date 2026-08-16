@@ -6,8 +6,7 @@
 \begin{center}
 \begin{minipage}{0.5\textwidth}
 \begin{small}
-In which the theoretical introduction and state of the art on the numerical calculation of electromagnetic wakefields and impedances will be
-detailed
+In which the theoretical introduction and state of the art on the numerical calculation of electromagnetic wakefields and impedances will be detailed
 \end{small}
 \end{minipage}
 \vspace{0.5cm}
@@ -15,185 +14,141 @@ detailed
 
 \section{Beam-coupling impedance computation challenges}
 % Brief recap of the state of the art + statement of current solver's limitations
-This section reviews the state of the art in wakefield and impedance simulations and lays out the present computation challenges. These
-challenges, together with current solvers' limitations, motivate the development of a new, open-source wakefield solver capable of
-addressing present and future impedance simulation requirements.
+This section reviews the state of the art in wakefield and impedance simulations and lays out the present computation challenges. These challenges, together with current solvers' limitations, motivate the development of a new, open-source wakefield solver capable of addressing present and future impedance simulation requirements.
 
 \subsection{State of the art of impedance simulations}
 
-Beam-coupling impedance and wakefields are critical to the design and operation of particle accelerators. As charged particle beams traverse
-accelerator structures, interactions with geometric discontinuities and material inhomogeneities generate \gls{em} fields---known as
-wakefields---that degrade beam stability, cause beam-induced heating, and limit machine performance \cite{metral_impedance_2020}. The
-frequency-domain counterpart of these interactions is the beam-coupling impedance, an intrinsic property of each component used to quantify
-wakefield effects. Correctly predicting their impact on beam stability and machine heating requires an accurate, fullwave evaluation of the
-beam-coupling impedance of the main accelerator components---covering both long-range narrowband resonances and short-range broadband
-sources from resistive wall.
+Beam-coupling impedance and wakefields are critical to the design and operation of particle accelerators. As charged particle beams traverse accelerator structures, interactions with geometric discontinuities and material inhomogeneities generate \gls{em} fields---known as wakefields---that degrade beam stability, cause beam-induced heating, and limit machine performance \cite{metral_impedance_2020}. The frequency-domain counterpart of these interactions is the beam-coupling impedance, an intrinsic property of each component used to quantify wakefield effects. Correctly predicting their impact on beam stability and machine heating requires an accurate, fullwave evaluation of the beam-coupling impedance of the main accelerator components---covering both long-range narrowband resonances and short-range broadband sources from resistive wall.
 
-Analytical methods provide accurate impedance predictions for simplified structures such as resistive walls \cite{yokoya_resistive_1993,
-migliorati_resistive_2019}, RF cavities \cite{hofmann_analytic_1990, jensen_rf_2014}, and transitions such as tapers or steps
-\cite{yokoya_impedance_1990, stupakov_low_2007, palumbo_wake_1995}. For realistic components with complex geometries, however, the full
-three-dimensional solution of Maxwell's equations \cite{maxwell_viii_1997} is required.
+\subsubsection{Analytical and semi-analytical methods}
 
-Maxwell's equations can be solved numerically in either frequency or time domain, using several discretization approaches. Among the most
-widely used are the \gls{fdtd} method, the \gls{fem}, and the \gls{fvtd} method, which differ primarily in the formulation of the governing
-equations (differential or weak form), the choice of basis functions, and the handling of material interfaces and boundary conditions.
+Analytical methods provide accurate impedance predictions for simplified structures such as resistive walls
+\cite{yokoya_resistive_1993, migliorati_resistive_2019}, RF cavities
+\cite{hofmann_analytic_1990, jensen_rf_2014}, and geometric transitions such as tapers or steps
+\cite{yokoya_impedance_1990, stupakov_low_2007, palumbo_wake_1995}.
 
-In the frequency domain, for lossless, source-free structures, the problem reduces to an eigenmode formulation, as used in CST Eigenmode,
-HFSS, or ACE3P's Omega3P. Time-domain solvers instead offer full-wave impedance characterization by directly computing Maxwell's equations
-in integral (see Eqs.~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) or differential form---the latter commonly known as the \gls{fdtd} method.
-Commercial solvers such as \gls{cst}~\cite{cst_studio_suite} Wakefield, \gls{gdfidl}~\cite{bruns_gdfidl_1997}, and closed-source
-\gls{echo4d}~\cite{zagorodnov_echo4d} and PBCI~\cite{Lau:1182975} use the \gls{fit} \cite{weiland_finite_2003}, while ACE3P's T3P employs
-the \gls{fem} \cite{candel_ace3p_2010}.
+Semi-analytical methods extend the range of structures that can be treated without resorting to a full three-dimensional simulation. For example, field-matching approaches such as \gls{impedancewake2d} can calculate the impedance of longitudinally uniform, multilayered beam pipes with circular or flat cross-sections~\cite{mounetElectromagneticFieldsBeam2010}, while mode-matching techniques can account for the finite longitudinal extent of azimuthally symmetric devices by expanding the fields into a set of eigenmodes~\cite{biancacciModeMatchingTechnique2014}. For realistic accelerator components with arbitrary three-dimensional geometries, however, a full numerical solution of Maxwell's equations \cite{maxwell_viii_1997} is generally required.
 
-Several open-source 3D solvers implement full-wave time-domain methods, such as Meep \cite{oskooi_meep_2010} and \gls{warpx}
+\subsubsection{Numerical methods}
+
+Maxwell's equations can be solved numerically in either frequency or time domain, using several discretization approaches. Among the most widely used are the \gls{fdtd} method, the \gls{fem}, and the \gls{fvtd} method, which differ primarily in the formulation of the governing equations (differential or conservative form), the choice of basis functions, and the handling of material interfaces and boundary conditions.
+
+\begin{definition}{Overview of the most common numerical methods}{numerical-methods}
+\begin{description}
+\item[\gls{fdtd}] Discretizes the differential form of Maxwell's equations using finite differences,
+typically on a structured staggered grid. It is simple and computationally efficient, but curved geometries and material interfaces are approximated by the grid.
+
+\item[\gls{fvtd}] Applies Maxwell's equations in integral conservation form to discrete control
+volumes and evaluates the exchange of electromagnetic flux through their faces. It can accommodate unstructured meshes and handles discontinuities at material interfaces through numerical fluxes.
+
+\item[\gls{fem}] Reformulates Maxwell's equations in weak form and approximates the fields using
+local basis functions defined over global mesh elements. Its flexible, often unstructured meshes represent complex geometries and material interfaces accurately, although at a much higher computational cost.
+\end{description}
+\end{definition}
+
+In the frequency domain, two complementary formulations are commonly used. For source-free structures, Maxwell's equations can be formulated as an \textbf{eigenvalue problem} whose solutions provide the resonant frequencies and field distributions of the supported modes. The contribution of each mode to the (geometric-only) impedance can be reconstructed in post-processing using the resonator formalism introduced in Section~\ref{sec:resonator_model}. This approach is implemented, for example, in the CST Studio Suite Eigenmode Solver and ACE3P's Omega3P\cite{candel_ace3p_2010} module. It is particularly well suited to identifying narrowband resonances, although a sufficiently large number of modes may be required to cover a broad frequency range.
+
+Alternatively, driven \textbf{frequency-domain solvers} compute the steady-state field response to a harmonic excitation at a prescribed frequency. Repeating the calculation over a frequency sweep provides the response across the frequency range of interest. This approach is available in tools such as the CST Studio Suite Frequency Domain Solver and Ansys HFSS, while ACE3P provides the frequency-domain module S3P\cite{candel_ace3p_2010}. In contrast to eigenmode analysis, driven formulations can directly include losses and frequency-dependent material properties, but they require a separate solution---or an interpolative frequency-sweep procedure---for each sampled frequency.
+
+\textbf{Time-domain solvers} instead obtain a broadband characterization from a single simulation by evolving Maxwell's equations under the excitation of a passing charged-particle bunch. The resulting wake potential is recorded behind the bunch and transformed into the frequency domain to obtain the beam-coupling impedance. Different spatial discretizations may be employed: commercial and closed-source wakefield solvers such as
+\gls{cst}~\cite{cst_studio_suite}, \gls{gdfidl}~\cite{bruns_gdfidl_1997},
+\gls{echo4d}~\cite{zagorodnov_echo4d}, and PBCI~\cite{Lau:1182975} report to be based on structured-grid
+formulations related to the \gls{fit} \cite{weiland_finite_2003}, whereas ACE3P's T3P module employs a high-order \gls{fem} discretization \cite{candel_ace3p_2010}.
+
+\subsubsection{Advanced open-source time-domain solvers}
+
+Several open-source 3D solvers implement full-wave time-domain methods, such as \gls{meep} \cite{oskooi_meep_2010} and \gls{warpx}
 \cite{fedeli_pushing_2022}, both based on the \gls{fdtd} method \cite{yee_numerical_1966}, and \gls{emclaw} \cite{moreno_emclaw_2021}, which
 uses a \gls{fvtd} Godunov scheme. However, none of these tools offer the features needed for beam-coupling impedance calculations: native
 \gls{cad} geometry support, advanced material modeling, and wakefield-tailored post-processing.
 
-At the time of this thesis, there is therefore no open-source alternative capable of treating arbitrarily shaped 3D accelerator components
-and delivering a fullwave, long-range converged impedance result. On top of this gap, the field faces growing challenges in performing such
-simulations with the tools currently available.
+At the time of this thesis, there is therefore no open-source alternative capable of treating arbitrarily shaped 3D accelerator components and delivering a fullwave, long-range converged impedance result. On top of this gap, the field faces growing challenges in performing such simulations with the tools currently available.
 
 \subsection{Challenges from future accelerator projects}
 % Introduction to \gls{fcc} project and Muon collider project
 
-Despite more than 30 years of Wakefield-solver development, impedance evaluation remains challenging---and these challenges intensify
-further for future accelerator projects that push the boundaries of current designs. At CERN, two main projects are under discussion as
-successors to the \gls{lhc} and \gls{hl-lhc}, each bringing new beam-coupling impedance computation challenges.
+Despite more than 30 years of Wakefield-solver development, impedance evaluation remains challenging---and these challenges intensify further for future accelerator projects that push the boundaries of current designs. At CERN, two main projects are under discussion as successors to the \gls{lhc} and \gls{hl-lhc}, each bringing new beam-coupling impedance computation challenges.
 
-\subsubsection*{FCC impedance challenges}
+\subsubsection{FCC impedance challenges}
 % Cite \gls{fcc} papers by Chiara and Carlo
-CERN's leading option is the \gls{fcc}, a proposed \SI{91}{\kilo\meter} circular collider to be built in a much larger tunnel beneath the
-Geneva region, succeeding the \gls{lhc}. It is planned in two stages: \gls{fcc-ee}, an electron-positron collider for precision Higgs,
-electroweak, and top-quark physics starting in the 2040s, followed by \gls{fcc}-hh, a proton-proton collider reaching energies around
+CERN's leading option is the \gls{fcc}, a proposed \SI{91}{\kilo\meter} circular collider to be built in a much larger tunnel beneath the Geneva region, succeeding the \gls{lhc}. It is planned in two stages: \gls{fcc-ee}, an electron-positron collider for precision Higgs, electroweak, and top-quark physics starting in the 2040s, followed by \gls{fcc}-hh, a proton-proton collider reaching energies around
 \SI{100}{\tera\electronvolt} to search directly for physics beyond the Standard Model.
 
-\begin{itemize}
+\begin{description}
 \item \textbf{Short bunches.} One of the key challenges for future high-energy colliders such as the \gls{fcc} lies in its design parameters,
-already demanding in the \gls{fcc-ee} regime. Simulating \gls{fcc-ee} accelerator components is computationally heavy because of the short
-design bunch length of 4 to \SI{12}{\milli\meter}. As explained in Chapter 2, bunch length sets the frequency range excited by the passing
-bunch: the shorter the bunch, the wider the excited spectrum, following Fourier Transform principles. Resolving this short bunch on the
-simulation mesh (as a rule of thumb, at least 20 cells per wavelength) leaves longitudinal mesh cells below a millimeter, in components that
-can be meters long.
+already demanding in the \gls{fcc-ee} regime. Simulating \gls{fcc-ee} accelerator components is computationally heavy because of the short design bunch length of 4 to \SI{12}{\milli\meter}. As explained in Chapter 2, bunch length sets the frequency range excited by the passing bunch: the shorter the bunch, the wider the excited spectrum, following Fourier Transform principles. Resolving this short bunch on the simulation mesh (as a rule of thumb, at least 20 cells per wavelength) leaves longitudinal mesh cells below a millimeter, in components that can be meters long.
 
 \item \textbf{Slowly decaying wakefields.} Accelerator components are also often built from highly conductive materials (e.g.\ copper) to
-reduce their impedance. This slows wakefield decay, pushing the required simulation length---the wakelength---into the kilometer range to
-fully resolve impedance resonance amplitudes.
+reduce their impedance. This slows wakefield decay, pushing the required simulation length---the wakelength---into the kilometer range to fully resolve impedance resonance amplitudes.
 
 \item \textbf{Propagating fields and element cross-talk.} The design beam pipe aperture is large relative to the bunch length, so some
-electromagnetic modes excited by the passing bunch no longer stay resonant in the device but propagate through the beam pipe above its
-cutoff frequency. This introduces a further challenge: possible cross-talk between accelerator components, which requires full control of
-the solver's open-boundary conditions to simulate and understand.
+electromagnetic modes excited by the passing bunch no longer stay resonant in the device but propagate through the beam pipe above its cutoff frequency. This introduces a further challenge: possible cross-talk between accelerator components, which requires full control of the solver's open-boundary conditions to simulate and understand.
 
 \item \textbf{High beam current and machine size.} The \gls{fcc-ee}'s high beam current---11200 bunches at \num{2.17e11} protons per bunch for the
-Z-mode, at the time of writing---combined with its \SI{91}{\kilo\meter} circumference, raises the accuracy demands on beam-coupling
-impedance calculations given the tight constraints on beam stability and beam-induced heating.
-\end{itemize}
+Z-mode, at the time of writing---combined with its \SI{91}{\kilo\meter} circumference, raises the accuracy demands on beam-coupling impedance calculations given the tight constraints on beam stability and beam-induced heating.
+\end{description}
 
-\subsubsection*{Muon Collider impedance challenges}
+\subsubsection{Muon Collider impedance challenges}
 % Cite Elias and Erik's papers
 
-A more long-term, first-of-its-kind option is the Muon Collider, part of the \gls{imcc}. It is a design study for a future collider that
-would smash muons and anti-muons together at multi-TeV energies. Because muons are far heavier than electrons, they lose much less energy to
-synchrotron radiation, making a compact, high-energy lepton collider possible---but their short (\SI{2.2}{\micro\second}) lifetime demands
-extremely fast production, cooling, and acceleration.
+A more long-term, first-of-its-kind option is the Muon Collider, part of the \gls{imcc}. It is a design study for a future collider that would smash muons and anti-muons together at multi-TeV energies. Because muons are far heavier than electrons, they lose much less energy to synchrotron radiation, making a compact, high-energy lepton collider possible---but their short (\SI{2.2}{\micro\second}) lifetime demands extremely fast production, cooling, and acceleration.
 
 The Muon Collider adds further challenges that current commercial and non-commercial solvers cannot handle directly.
 
-\begin{itemize}
+\begin{description}
 \item \textbf{Impedance in matter.} During ionization cooling, muons propagate inside matter rather than vacuum, requiring an extension of
-the analytical formalism. Based on a field-matching technique [CITE], this formalism has recently been extended to material-filled
-geometries, predicting impedance resonances with a predictable periodicity as the beam traverses a dielectric absorber. These resonances are
-attenuated once conductive losses are included, but remain a significant contribution compared to the vacuum-only case [CITE]. This extended
-formalism still needs numerical validation. However, current commercial solvers do not support beam currents traversing materials other than
-vacuum. One relevant case is the Muon Collider's RF cavities in the cooling channel: copper cavities with beryllium windows at the entrance
-and exit, designed to perform 6D ionization cooling and reduce muon emittance by several orders of magnitude, while the RF cavities restore
-the longitudinal momentum lost in the absorbers [CITE].
+the analytical formalism. Based on a field-matching technique [CITE], this formalism has recently been extended to material-filled geometries, predicting impedance resonances with a predictable periodicity as the beam traverses a dielectric absorber. These resonances are attenuated once conductive losses are included, but remain a significant contribution compared to the vacuum-only case [CITE]. This extended formalism still needs numerical validation. However, current commercial solvers do not support beam currents traversing materials other than vacuum. One relevant case is the Muon Collider's RF cavities in the cooling channel: copper cavities with beryllium windows at the entrance and exit, designed to perform 6D ionization cooling and reduce muon emittance by several orders of magnitude, while the RF cavities restore the longitudinal momentum lost in the absorbers [CITE].
 
 \item \textbf{Non-ultra-relativistic beams.} The ionization cooling regime is challenging both because of the absorbers and because the
-beam cannot be treated as ultra-relativistic: the muon relativistic factor $\beta$ ranges from 0.88 to 0.92, so the simulated impedance
-includes a \gls{sc} contribution that must be separated from the cavity-driven impedance. Simulating non-ultra-relativistic beams is
-difficult, and only advanced solvers such as \gls{cst} Wakefield can currently do so [CITE]---yet isolating the \gls{sc} contribution
-remains a challenge no existing \gls{em} solver addresses.
-\end{itemize}
+beam cannot be treated as ultra-relativistic: the muon relativistic factor $\beta$ ranges from 0.88 to 0.92, so the simulated impedance includes a \gls{sc} contribution that must be separated from the cavity-driven impedance. Simulating non-ultra-relativistic beams is difficult, and only advanced solvers such as \gls{cst} Wakefield can currently do so [CITE]---yet isolating the \gls{sc} contribution remains a challenge no existing \gls{em} solver addresses.
+\end{description}
 \subsection{Challenges in present particle accelerators}
 % Cite Chiaras paper and me & Leo's IPAC paper and me & Carlo's HB paper
 
-Beam-coupling impedance challenges are not limited to future accelerators. As described in Chapter 2, present high-energy, high-intensity
-accelerators already suffer impedance-driven component damage that can cause machine downtime and instrumentation failure, as seen in the
+Beam-coupling impedance challenges are not limited to future accelerators. As described in Chapter 2, present high-energy, high-intensity accelerators already suffer impedance-driven component damage that can cause machine downtime and instrumentation failure, as seen in the
 \gls{lhc} and its injector chain. As beam current and intensity increase, more impedance-driven problems arise, making the ability to understand,
 model, and predict impedance-driven element failure essential for operating accelerators in the coming HL-\gls{lhc} era.
 
-One recent example is the SPS BWS failure, where four beam-wire-scanner measurement wires sublimated overnight under high-intensity
-operation. The issue was addressed urgently with a new design, based on Wakefield simulations, aimed at reducing beam-induced heating on the
-wire.
+One recent example is the SPS BWS failure, where four beam-wire-scanner measurement wires sublimated overnight under high-intensity operation. The issue was addressed urgently with a new design, based on Wakefield simulations, aimed at reducing beam-induced heating on the wire.
 
-Another is the \gls{lhc} Warm Vacuum interconnecting modules. These include thin, highly conductive fingers that maintain electromagnetic
-continuity between the beampipe and the transition tube, shielding the corrugated bellow behind them. The bellows accommodate thermal
-expansion and compression, but their unshielded contribution to impedance would be too large to leave untreated. However, these thin fingers
-can degrade over time, drifting from their design configuration and increasing both impedance and beam-induced heating. This heating can be
-non-uniform across the device: if localized by the resonant mode composition, it can damage or---as with the \gls{lhc} Warm Vacuum
-modules---melt and plasticize components, an effect known as the impedance loop, where higher power loss causes thermomechanical stress that
-further changes (and typically worsens) the device's impedance.
+Another is the \gls{lhc} Warm Vacuum interconnecting modules. These include thin, highly conductive fingers that maintain electromagnetic continuity between the beampipe and the transition tube, shielding the corrugated bellow behind them. The bellows accommodate thermal expansion and compression, but their unshielded contribution to impedance would be too large to leave untreated. However, these thin fingers can degrade over time, drifting from their design configuration and increasing both impedance and beam-induced heating. This heating can be non-uniform across the device: if localized by the resonant mode composition, it can damage or---as with the \gls{lhc} Warm Vacuum modules---melt and plasticize components, an effect known as the impedance loop, where higher power loss causes thermomechanical stress that further changes (and typically worsens) the device's impedance.
 
-\subsection{Key features needed in a next-generation Wakefield solver}
+\subsection{Analysis of present EM/Wakefield solver features}
+\label{sec:wakefield_solver_requirements}
 
-Fullwave impedance simulations of 3D accelerator components with arbitrary geometry and conductive or dispersive materials have so far only
-been possible with black-box commercial solvers. Despite 30 years of development and solid benchmarking, their lack of transparency makes
-them rigid, and they represent a single point of failure for complex impedance evaluations. The impedance field keeps evolving, demanding a
-solver that can be extended to meet newly arising challenges. Figure \ref{fig:EMfeatures} gathers the key features identified for our
-next-generation Wakefield solver, and the level of maturity on different EM solver options.
+Full-wave impedance simulations of three-dimensional accelerator components with complex geometries and conductive or dispersive materials have traditionally relied on commercial or closed-source solvers. These tools have benefited from decades of development and extensive benchmarking, but their closed implementations limit transparency, reproducibility, and the possibility of adapting their numerical methods to new research needs. As impedance studies address increasingly complex geometries, material responses, and computational requirements, there is therefore a need for an open and extensible wakefield solver.
 
-\begin{figure}[htb]
+Figure~\ref{fig:EMfeatures} summarizes the key features for such a solver and compares their availability across several existing \gls{em} simulation tools. The comparison covers geometry and material modeling, wakefield-specific functionality, computational performance, and software accessibility.
+
+\begin{figure}[h]
 \centering
-\includegraphics[width=1\linewidth]{figures_ch3/fig_wakefield_features.pdf}
-\caption{Table showing the key features needed for a complete Wakefield solver and their availability across different commercial and open-source EM solver options}
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_wakefield_features.pdf}
+\caption[Comparison of electromagnetic solvers for wakefield simulations]{Comparison of the
+capabilities available in existing electromagnetic solvers for three-dimensional wakefield simulations. Green indicates full support, yellow partial support, and red no support. The comparison reflects the software capabilities available at the time of writing.}
 \label{fig:EMfeatures}
 \end{figure}
 
-Starting from left to right, we believe that a modern solver needs to be open-source and fully transparent, allowing continuous improvement
-and extension. Among the most promising open-source options, \gls{warpx}~\cite{fedeli_pushing_2022} --- a mature and powerful,
-GPU-accelerated particle-in-cell code with an active developer community and a modern Python interface, widely used across the plasma and
-beam-physics community --- and \gls{emclaw}~\cite{moreno_emclaw_2021} --- a compact FVTD solver whose unsplit Godunov scheme avoids flux
-limiters by interpolating only the field components that remain continuous across material interfaces, making it both simpler and
-competitive in speed with \gls{fdtd} --- still lack, or only partially support, some of the fundamental features needed for 3D accelerator
-wakefield simulations: \gls{cad} geometry import, material losses, beam excitation injection, and long-range wakefield computation.
+Among the open-source alternatives considered, \gls{warpx}~\cite{fedeli_pushing_2022} is a mature, GPU-accelerated particle-in-cell code with an active developer community and a modern Python interface. It is widely used in the plasma- and beam-physics communities and provides strong support for parallel computing. However, its geometry import, material modelling, and source definition are not specifically designed for accelerator wakefield calculations. In particular, it does not provide a complete workflow for importing arbitrary \gls{cad} geometries, exciting a structure with a relativistic bunch, and calculating long-range wake potentials and beam-coupling impedances.
 
-\gls{echo4d}~\cite{zagorodnov_echo4d} is a closed-source code well regarded in the impedance community for its accuracy, with solid
-\gls{cad} import from \gls{stl} geometry. Thanks to its co-moving window and multithreading, it is computationally efficient even without
-GPU acceleration, though it does not include material losses and its co-moving window approach is not intended for long-range wakefields.
+Similarly, \gls{emclaw}~\cite{moreno_emclaw_2021} is a compact \gls{fvtd} solver based on an unsplit Godunov scheme. Its treatment of material interfaces avoids the need for flux limiters by interpolating only the field components that remain continuous across each interface, providing a simple and computationally competitive alternative to conventional \gls{fdtd} schemes. Nevertheless, it lacks several features required for general accelerator applications, including \gls{cad} geometry import, beam excitation, open boundary conditions, long-range wakefield calculations, and wakefield-specific post-processing.
 
-Among the commercial solvers, \gls{cst}~\cite{cst_studio_suite} Wakefield solver --- the most established and extensively benchmarked
-full-wave tool in the accelerator community, and CERN's go-to choice --- and \gls{gdfidl}~\cite{bruns_gdfidl_1997} --- a mature, efficient
-\gls{fdtd} solver --- both lack GPU acceleration and a transparent Python interface; \gls{gdfidl} further forces a uniform mesh and also
-uses the co-moving window, limiting it to short-range wakefields. Of all options, \gls{cst} remains the most complete tool and is the
-reference for beam-coupling impedance simulations at CERN.
+Among the closed-source tools, \gls{echo4d}~\cite{zagorodnov_echo4d} is well regarded in the impedance community for its accuracy and supports the import of \gls{stl} geometries. Its co-moving computational window and multithreaded implementation make it efficient even without GPU acceleration. However, it does not support conductive or dispersive materials, and its co-moving-window formulation is intended primarily for short-range wakefield calculations.
 
-\clearpage
-\subsubsection{The Wakis project pillars}
+The most established general-purpose option is the \gls{cst}~\cite{cst_studio_suite} Wakefield Solver, which has been extensively benchmarked and remains CERN's reference tool for full-wave beam-coupling impedance simulations. It provides broad support for complex geometries, conductive and dispersive materials, beam excitation, open boundaries, non-uniform meshes, and long-range wakefield calculations.
+\gls{gdfidl}~\cite{bruns_gdfidl_1997} is another mature and efficient solver used in the accelerator
+community. Both tools, however, are closed source and lack GPU acceleration and a modern Python interface. Moreover, \gls{gdfidl} is restricted to a uniform mesh and employs a co-moving computational window, limiting its suitability for long-range wakefield calculations.
 
-\gls{wakis}~\cite{de_la_fuente_garcia_wakis_2025} began as a post-processing module attached to WarpX's \gls{fdtd} solver, computing wake
-potential and impedance from WarpX's pre-computed fields~\cite{de_la_fuente_generalized_2023}. Since WarpX lacked material tensors, modeled
-the beam current only via \gls{cad}-free PIC current deposition of millions of macroparticles---computationally costly---and its open
-boundaries (an adjusted \gls{pml}~\cite{berenger_perfectly_1994}) showed important limitations when the beam was injected or modes were
-excited above cutoff~\cite{de_la_fuente_generalized_2023}, the idea of a new solver built from scratch took shape, giving rise to this PhD
-topic.
+\subsubsection{Motivation for a next-generation Wakefield solver}
 
-Together with the identified key features, four design principles guided this new solver:
+As shown by this comparison, no existing option combines an open and transparent implementation with robust geometry handling, advanced material modelling, wakefield-specific functionality, long-range calculations, hardware acceleration, and a modern Python interface. This gap motivated the development of \gls{wakis}, with the aim of bringing these capabilities together within an open and extensible simulation framework.
 
-\begin{itemize}
-\item \textbf{Open-source approach.} In line with CERN's open-source mission and its goal of building in-house electromagnetic-simulation expertise, \gls{wakis} is designed to be transparent and accessible to the wider accelerator community. An open, collaborative framework lets impedance-evaluation expertise from CERN and other institutions be pooled, and lets the tool grow beyond a single developer or institution. It also arrives as AI-assisted code development becomes mainstream: LLMs can help physicists and engineers with limited coding experience read and extend open-source code, build digital twins of accelerator components, and automate simulation and design-iteration steps---opportunities closed-source tools cannot offer.
+Meeting these requirements depends first on the choice of numerical method. The formulation must support three-dimensional electromagnetic fields, spatially varying and anisotropic materials, the direct excitation of the computational domain by a relativistic bunch, and an efficient time-domain evolution suitable for long wakefield calculations. 
 
-\item \textbf{Trusted numerical method.} The numerical method underlying \gls{wakis} is the \gls{fit}, the formalism trusted by the commercial solvers proven most accurate for impedance evaluations, and one with no existing open-source implementation. \gls{fit} discretizes Maxwell's equations in integral form into large sparse matrix operators, which---unlike the loop-based \gls{fdtd}---are contiguous in memory and therefore \gls{gpu}-friendly. Its formulation also naturally accommodates embedded boundaries between material regions through rank-2 material tensors, and reduces the addition of the passing beam current to a time-dependent external source term.
+For this reason, \gls{wakis} is based on the \gls{fit}: a well-established method already used by several reference wakefield solvers, but for which no general open-source implementation tailored to accelerator wakefield simulations was available. Its integral formulation preserves the geometric structure of Maxwell's equations and separates the topology of the computational grid from its metric and material properties. It also leads to a compact set of sparse matrix operators, providing a suitable foundation for the modular and hardware-accelerated implementation developed in this thesis. The following section introduces this formulation and
+its application to the time-domain solution of Maxwell's equations.
 
-\item \textbf{Modularity and maintainability.} \gls{wakis} is written in Python, chosen as an entry-level, widely adopted language that lowers the barrier for new contributors and users alike. The code follows modern software-engineering practices---modular design, version control, continuous integration and testing, and documented, interactive examples---to keep the solver maintainable and extendable well beyond this thesis. Chapter 4 details this design and the resulting code-quality infrastructure.
 
-\item \textbf{Memory and computation performant.} Extending \gls{wakis} to new physics---e.g.\ impedance in matter or component cross-talk---demands an extremely fine, accurate mesh to capture geometry detail, and fast execution to complete simulations and iterate on component design in reasonable time. Computational speed and memory management were therefore a central focus of this thesis, in particular making the implementation \gls{gpu} compatible---a first for Wakefield solvers in this field.
-\end{itemize}
 
-% The proposed \gls{wakis} solver has been developed with these four principles in mind, achieving strong progress on most of them over this
-% three-year period. Built mainly in Python and benefiting from trusted open-source libraries such as NumPy and SciPy, it demonstrates not
-% only the feasibility of such a tool, but the potential to improve on, and eventually surpass, stagnated commercial options.
 
 \newpage
 
@@ -203,15 +158,13 @@ Together with the identified key features, four design principles guided this ne
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
+% -----------------------------------------------
 \section{The Finite Integration Technique}
 \label{sec:mge_final}
 
-The beauty of numerical methods lies in their ability to turn complex equations into computer-digestible operators that can be solved
-efficiently. In this section, we introduce the \gls{fit}, the numerical method chosen to build this thesis' Wakefield solver, \gls{wakis}.
+The beauty of numerical methods lies in their ability to turn complex equations into computer-digestible operators that can be solved efficiently. In this section, we introduce the \gls{fit}, the numerical method chosen to build this thesis' Wakefield solver, \gls{wakis}.
 
-The goal of a Wakefield solver is to solve Maxwell's equations in a box-shaped simulation domain that includes arbitrarily 3D-shaped
-material regions, under certain boundary conditions, and under the excitation of a passing beam source. To achieve this, we start from the
-most general approach, the integral form of Maxwell's equations.
+The goal of a wakefield solver is to solve Maxwell's equations in a box-shaped simulation domain that includes arbitrarily shaped material regions, under certain boundary conditions, and under the excitation of a passing beam source. To achieve this, we start from the most general approach, the integral form of Maxwell's equations.
 
 Let $\Omega \subset \mathbb{R}^3$ denote the computational domain with boundary $\partial\Omega$ and outward unit normal $\mathbf{n}$. In
 \gls{fit}, the \gls{em} field evolution is formulated starting from the general integral form of Maxwell equations, written for an arbitrary
@@ -224,161 +177,147 @@ oriented surface $A$ with line boundary $\partial A$ and an arbitrary volume $V$
 \oiint_{\partial V} \mathbf{D}\cdot \mathrm{d}\mathbf{A} &= \iiint_{V}\rho\, \mathrm{d}V \label{eq:Maxwell:d}
 \end{align}
 
-Equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} represent the evolution of the electric field $\mathbf{E}$, magnetic flux density
-$\mathbf{B}$, electric displacement field $\mathbf{D}$, and magnetic field intensity $\mathbf{H}$, in the presence of a current density
-$\mathbf{J}$ and charge density $\rho$. Taken together, they govern all classical electromagnetic phenomena and form the foundation of the
-numerical method developed in this work:
+Equations~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d} represent the evolution of the electric field $\mathbf{E}$, magnetic flux density $\mathbf{B}$, electric displacement field $\mathbf{D}$, and magnetic field intensity $\mathbf{H}$, in the presence of a current density $\mathbf{J}$ and charge density $\rho$. Taken together, they govern all classical electromagnetic phenomena and form the foundation of the numerical method developed in this work:
 
 \begin{mydescription}
 \item[Faraday's law~\eqref{eq:Maxwell:a}:] the circulation of the electric
-field $\mathbf{E}$ around the closed boundary $\partial A$ of any oriented surface $A$ equals the negative rate of change of the magnetic
-flux through that surface. This relation captures the fundamental coupling between time-varying magnetic fields and induced electric fields.
+field $\mathbf{E}$ around the closed boundary $\partial A$ of any oriented surface $A$ equals the negative rate of change of the magnetic flux through that surface. This relation captures the fundamental coupling between time-varying magnetic fields and induced electric fields.
 
 \item[Amp\`ere--Maxwell law~\eqref{eq:Maxwell:b}:] the circulation of the
-magnetic field intensity $\mathbf{H}$ around $\partial A$ is driven by two contributions --- the conduction current density $\mathbf{J}$ and
-the displacement current $\partial \mathbf{D}/\partial t$, the latter introduced by Maxwell to ensure consistency with charge conservation.
-These source terms enable the propagation of electromagnetic waves even in the absence of free charges.
+magnetic field intensity $\mathbf{H}$ around $\partial A$ is driven by two contributions --- the conduction current density $\mathbf{J}$ and the displacement current $\partial \mathbf{D}/\partial t$, the latter introduced by Maxwell to ensure consistency with charge conservation. These source terms enable the propagation of electromagnetic waves even in the absence of free charges.
 
 \item[Gauss's law for magnetic fields~\eqref{eq:Maxwell:c}:] the net magnetic
-flux through any closed surface $\partial V$ is identically zero, expressing the absence of magnetic monopoles. This constraint is satisfied
-by construction in the discrete setting when the initial conditions are divergence-free.
+flux through any closed surface $\partial V$ is identically zero, expressing the absence of magnetic monopoles. This constraint is satisfied by construction in the discrete setting when the initial conditions are divergence-free.
 
 \item[Gauss's law for electric fields~\eqref{eq:Maxwell:d}:] the total electric
-flux through a closed surface $\partial V$ equals the net free charge enclosed in the volume $V$. Similarly to Eq.~\eqref{eq:Maxwell:c},
-this relation is automatically preserved at the discrete level by the consistency of the primal--dual grid construction.
+flux through a closed surface $\partial V$ equals the net free charge enclosed in the volume $V$. Similarly to Eq.~\eqref{eq:Maxwell:c}, this relation is automatically preserved at the discrete level by the consistency of the primal--dual grid construction.
 \end{mydescription}
 
-The constitutive relations close the system by linking the field intensities $(\mathbf{E},\mathbf{H})$ to the flux densities
-$(\mathbf{D},\mathbf{B})$. In the most general (possibly anisotropic) case,
+The constitutive relations close the system by linking the field intensities $(\mathbf{E},\mathbf{H})$ to the flux densities $(\mathbf{D},\mathbf{B})$. In the most general (possibly anisotropic) case,
 \begin{align}
 \mathbf{D} &= \underline{\underline{\varepsilon}}\,\mathbf{E}, \qquad
 \mathbf{B} = \underline{\underline{\mu}}\,\mathbf{H}, \qquad
 \mathbf{J} = \underline{\underline{\sigma}}\,\mathbf{E} + \mathbf{J}_{\mathrm{src}},
 \label{eq:constitutive_continuum}
 \end{align}
+%
+The constitutive relations in Eq.~\eqref{eq:constitutive_continuum} relate these fields through the material properties: permittivity $\varepsilon$, permeability $\mu$, and conductivity $\sigma$. They are represented as $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$, which are (in general space-dependent) second-order tensors, and $\mathbf{J}_{\mathrm{src}}$ denotes impressed sources such as the particle beam current. Throughout this work, $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$ are treated as frequency-independent, non-dispersive tensors --- an approximation justified by the weakly dispersive behaviour of the conductive and dielectric materials typically found in accelerator components. Accounting for frequency or time dependence would instead require replacing the products in Eq.~\eqref{eq:constitutive_continuum} by convolutions in time.
 
-The constitutive relations in Eq.~\eqref{eq:constitutive_continuum} relate these fields through the material properties: permittivity
-$\varepsilon$, permeability $\mu$, and conductivity $\sigma$. They are represented as $\underline{\underline{\varepsilon}}$,
-$\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$, which are (in general space-dependent) second-order tensors, and
-$\mathbf{J}_{\mathrm{src}}$ denotes impressed sources such as the particle beam current. Throughout this work,
-$\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$ and $\underline{\underline{\sigma}}$ are treated as
-frequency-independent, non-dispersive tensors --- an approximation justified by the weakly dispersive behaviour of the conductive and
-dielectric materials typically found in accelerator components. Accounting for frequency or time dependence would instead require replacing
-the products in Eq.~\eqref{eq:constitutive_continuum} by convolutions in time.
-
-Applying \gls{fit}, we transform these continuous integrals into discrete matricial operators, arriving at the so-called \glspl{mge}. Under
-this thesis' nomenclature, they read:
+Applying \gls{fit}, we transform these continuous integrals into discrete matrix operators, arriving at the so-called \glspl{mge}. Under this thesis' nomenclature, they read:
 
 \begin{align}
-\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}&= -\mathbf{D}_A\,\frac{\partial \mathbf{b}}{\partial t} \label{eq:MGE:faraday}\\
-\widetilde{\mathbf{C}}\,\widetilde{\mathbf{D}}_s\,\mathbf{h} &= \widetilde{\mathbf{D}}_A\left(\frac{\partial \mathbf{d}}{\partial t} + \mathbf{j}\right) \label{eq:MGE:ampere} \\
-\mathbf{S}\,\mathbf{D}_A\, \mathbf{b} &= 0 \label{eq:MGE:gauss_mag} \\
-\widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\left( \frac{\partial \mathbf{d}}{\partial t} +\mathbf{j} \right) & = 0 \label{eq:MGE:gauss_el}
+\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}
+&= -\mathbf{D}_A\,\frac{\partial \mathbf{b}}{\partial t},
+\label{eq:MGE:faraday}\\
+\widetilde{\mathbf{C}}\,\widetilde{\mathbf{D}}_s\,\mathbf{h}
+&= \widetilde{\mathbf{D}}_A
+\left(\frac{\partial \mathbf{d}}{\partial t}+\mathbf{j}\right),
+\label{eq:MGE:ampere}\\
+\mathbf{S}\,\mathbf{D}_A\,\mathbf{b}
+&= \mathbf{0},
+\label{eq:MGE:gauss_mag}\\
+\widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\mathbf{d}
+&= \mathbf{q}.
+\label{eq:MGE:gauss_el}
 \end{align}
 
-Where: $\mathbf{e}$ and $\mathbf{h}$ are the vectors of discrete electric and magnetic field \glspl{dof}, stored on the edges of the primal
-and dual grids introduced in Sec.~\ref{sec:mge_yee}. $\mathbf{C}$ and $\widetilde{\mathbf{C}}$ are the discrete curl operators, while
-$\mathbf{S}$ and $\widetilde{\mathbf{S}}$ are the discrete divergence operators, both defined in Sec.~\ref{sec:mge_operators}.
-$\mathbf{D}_s$, $\widetilde{\mathbf{D}}_s$, $\mathbf{D}_A$ and $\widetilde{\mathbf{D}}_A$ are diagonal matrices of primal and dual edge
-lengths and face areas, encoding the grid metric. $\mathbf{b}$ and $\mathbf{d}$ are the discrete magnetic and electric flux density vectors,
-and $\mathbf{j}$ the discrete total current density, related to $\mathbf{e}$ and $\mathbf{h}$ through the discrete material matrices
-$\mathbf{M}_\varepsilon$, $\mathbf{M}_\mu$ and $\mathbf{M}_\sigma$ in Eqs.~\eqref{eq:MGE:constit_b}--\eqref{eq:MGE:constit_j}. These
-matrices are built from the continuum tensors $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$ and
-$\underline{\underline{\sigma}}$ of Eq.~\eqref{eq:constitutive_continuum}, as detailed in Sec.~\ref{sec:em_materials}. Finally,
-$\mathbf{j}_{\mathrm{src}}$ is the discrete representation of the impressed source current $\mathbf{J}_{\mathrm{src}}$, which for a
-wakefield solver represents the passing beam excitation. Finally, the flux densities $(d,b)$ and current $j$ can be obtained via the discrete constitutive (material) relations closing the system, in direct analogy with Eq.~\eqref{eq:constitutive_continuum}:
+The quantities in the \glspl{mge} are:
+\begin{mydescription}
+\item[Field vectors:] $\mathbf{e}$ and $\mathbf{h}$ are the vectors of discrete electric and magnetic field \glspl{dof}, stored on the
+edges of the primal and dual grids introduced in Sec.~\ref{sec:mge_yee}.
+\item[Topological operators:] the primal curl $\mathbf{C}$ and dual curl $\widetilde{\mathbf{C}}$ are the discrete curl operators, while
+the primal divergence $\mathbf{S}$ and dual divergence $\widetilde{\mathbf{S}}$ are the discrete divergence operators. All four are defined in Sec.~\ref{sec:mge_operators}.
+\item[Metric matrices:] $\mathbf{D}_s$, $\widetilde{\mathbf{D}}_s$, $\mathbf{D}_A$, and $\widetilde{\mathbf{D}}_A$ are diagonal matrices
+containing the primal and dual edge lengths and face areas. Together, they encode the grid metric.
+\item[Density and charge vectors:] $\mathbf{b}$ and $\mathbf{d}$ are the discrete magnetic and electric flux-density vectors,
+$\mathbf{j}$ is the discrete total current-density vector, and $\mathbf{q}$ contains the electric charges associated with the dual cell volumes.
+\end{mydescription}
+
+The density vectors are related to $\mathbf{e}$ and $\mathbf{h}$ through the discrete material matrices $\mathbf{M}_\varepsilon$, $\mathbf{M}_\mu$, and $\mathbf{M}_\sigma$ in Eqs.~\eqref{eq:MGE:constit_b}--\eqref{eq:MGE:constit_j}. These matrices are built from the continuum tensors $\underline{\underline{\varepsilon}}$, $\underline{\underline{\mu}}$, and $\underline{\underline{\sigma}}$ of Eq.~\eqref{eq:constitutive_continuum}, as detailed in Sec.~\ref{sec:em_materials}. Finally, $\mathbf{j}_{\mathrm{src}}$ is the discrete representation of the impressed source current $\mathbf{J}_{\mathrm{src}}$, which represents the passing beam excitation in a wakefield solver. In direct analogy with Eq.~\eqref{eq:constitutive_continuum}, the discrete constitutive relations are:
+%
 \begin{align}
 \mathbf{b} &= \mathbf{M}_{\mu}\,\mathbf{h}, \label{eq:MGE:constit_b}\\
 \mathbf{d} &= \mathbf{M}_{\varepsilon}\,\mathbf{e}, \label{eq:MGE:constit_d}\\
 \mathbf{j} &= \mathbf{M}_{\sigma}\,\mathbf{e} + \mathbf{j}_{\mathrm{src}}. \label{eq:MGE:constit_j}
 \end{align}
-
-
-The following sections give the recipe to build each ingredient of the MGE.
+%
+With the complete set of equations established, the following sections describe how each ingredient of the \glspl{mge} is constructed.
 
 \subsection{The computational grid $G$}
 \label{sec:mge_integral}
 
-\begin{figure}[h]
-\centering
-\includegraphics[width=\linewidth]{figures_ch3/fig_computational_grid.pdf}
-\caption{Schematic of the simulation domain discretization. The domain is
-considered as a rectangular box subdivided into individual computational cells composing the Cartesian grid. Each computational cell $n$ is
-ordered using the lexicographic indexing convention.}
-\label{fig:comp_grid}
-\end{figure}
-
-The path of turning Maxwell's equations into the \glspl{mge} starts with a first approximation, the discretization of the simulation
-computational domain $\Omega$, in our case considered an arbitrarily shaped box. In order to numerically solve the presented set of
-equations, the computational domain $\Omega$ is discretized into a set number of hexahedral computational cells in each coordinate direction
-$x$, $y$, $z$, forming a computational grid $\mathbf{G}$ of $\{N_x \times N_y
-\times N_z\}$ cells --- often also referred to as \textit{simulation mesh}. The grid $G$ is defined in the orthogonal coordinate system $\mathbf{r} = \mathbf{r}(x,y,z)$ as:
+The path from Maxwell's equations to the \glspl{mge} starts with the discretization of the computational domain $\Omega$, which is represented here by a box-shaped domain. To numerically solve the presented set of equations, the computational domain $\Omega$ is discretized into a set number of hexahedral computational cells in each coordinate direction $x$, $y$, $z$, forming a computational grid $\mathbf{G}$ of $\{N_x \times N_y
+\times N_z\}$ cells --- often also referred to as the \textit{simulation mesh}. The grid $\mathbf{G}$ is defined in the orthogonal
+coordinate system $\mathbf{r} = \mathbf{r}(x,y,z)$ as:
 
 \begin{equation}
-\begin{split}
-\mathbf{G} = \{ (x_i,\, y_j,\, z_k)\quad
-x_0 < x_i < x_{N_x},\ i = 1,\ldots,N_x-1\quad \\ y_0 < y_j < y_{N_y},\ j = 1,\ldots,N_y-1\quad \\ z_0 < z_k < z_{N_z},\ k = 1,\ldots,N_z-1
-\}
-\end{split}
+\begin{aligned}
+\mathbf{G} = \bigl\{(x_i,\,y_j,\,z_k)\ \big|\quad
+&x_0 < x_i < x_{N_x}, &&i = 1,\ldots,N_x-1,\\ &y_0 < y_j < y_{N_y}, &&j = 1,\ldots,N_y-1,\\ &z_0 < z_k < z_{N_z}, &&k = 1,\ldots,N_z-1
+\bigr\}.
+\end{aligned}
 \label{eq:grid}
 \end{equation}
 
-From this spatial construction of the grid, all grid nodes $n$ (a total of $N = N_x N_y N_z$) of each computational cell in $\mathbf{G}$ are
-numbered linearly following the lexicographic indexing convention (see \autoref{def:Lexicographic_indexing}):
-
+Once the grid has been constructed, its $N=N_xN_yN_z$ cells are numbered linearly using the lexicographic indexing convention (see
+\autoref{def:Lexicographic_indexing}):
+%
 \begin{equation}
 n = iI+ jJ + kK,
 \qquad n = 0,\ldots,N - 1.
 \end{equation}
-
+%
 The quantities $I,\ J,\ K$ can be chosen to follow different ordering conventions. In the original \gls{fit} formulation
 \cite{weiland_wake_1992}, the choice $I = 1,\ J = N_x,\ K = N_xN_y$ sets a Fortran-order scheme, which is also followed in this thesis.
 
-\begin{definition}{Lexicographic indexing}{Lexicographic_indexing}
-A bijective mapping from multi-dimensional grid indices $(i, j, k)$ to a single linear index $n \in [0,\, N_x N_y N_z)$. Two standard
-conventions exist:
-\textbf{Fortran-order} (column-major), where the first index varies fastest,
-$n = i + N_x j + N_x N_y k$, and \textbf{C-order} (row-major), where the last index varies fastest, $n = k + N_z j + N_z N_y i$. The choice
-of ordering convention directly affects the sparsity pattern of the \gls{fit} matrices and has implications for memory access efficiency and
-solver performance.
-\end{definition}
+% \begin{definition}{Lexicographic indexing}{Lexicographic_indexing}
+% A bijective mapping from multi-dimensional grid indices $(i, j, k)$ to a single linear index $n \in [0,\, N_x N_y N_z)$. Two standard conventions exist:
+% \textbf{Fortran-order} (column-major), where the first index varies fastest,
+% $n = i + N_x j + N_x N_y k$, and \textbf{C-order} (row-major), where the last index varies fastest, $n = k + N_z j + N_z N_y i$. The choice of ordering convention directly affects the sparsity pattern of the \gls{fit} matrices and has implications for memory access efficiency and solver performance.
+% \end{definition}
 
-As shown in Figure~\ref{fig:comp_grid}, each computational cell $n$ is identified by an index triplet $\{i,\ j,\ k\}$, where $i$ represents
-the index along the $x$-direction, $j$ along the $y$-direction, and $k$ along the $z$-direction. The resulting ordered set of indices allows
-the field information to be stored in arrays and the matrix operators that numerically replace the continuous integral operators to be
-constructed.
+As shown in Figure~\ref{fig:comp_grid}, each computational cell $n$ is identified by an index triplet $\{i,\ j,\ k\}$, where $i$ represents the index along the $x$-direction, $j$ along the $y$-direction, and $k$ along the $z$-direction. The resulting ordered set of indices allows the field information to be stored in arrays and the matrix operators that numerically replace the continuous integral operators to be constructed.
+%
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_computational_grid.pdf}
+\caption{Schematic of the simulation domain discretization. The domain is
+considered as a rectangular box subdivided into individual computational cells composing the Cartesian grid. Each computational cell $n$ is ordered using the lexicographic indexing convention.}
+\label{fig:comp_grid}
+\end{figure}
+%
 
 \subsection{The computational cell $n$}
-
-\begin{figure}[h]
+%
+\begin{figure}[htb]
 \centering
-\includegraphics[width=\linewidth]{figures_ch3/fig_computational_cell.pdf}
-\caption{Schematic of the quantities allocation of each computational cell $n$.}
+\includegraphics[width=0.9\linewidth]{figures_ch3/fig_computational_cell.pdf}
+\caption{Schematic of the allocation of field quantities in each computational cell $n$.}
 \label{fig:comp_cell}
 \end{figure}
+%
+The field distribution in the volume of interest is replaced by discrete field values on each computational grid cell $n$. Rather than assigning all six field components to grid nodes (which causes problems at material interfaces where some components are discontinuous), the components of $\mathbf{E}$ are placed at the midpoints of cell edges $L= l_x, \ l_y, \ l_z$, and the components of the magnetic field $\mathbf{H}$ pierce the center of each cell face $A = A_x, \ A_y, \ A_z$. Figure~\ref{fig:comp_cell} shows a schematic of the base computational cell $n$, together with the field component locations and their indexation. Under the lexicographic ordering $n=i+jN_x+kN_xN_y$, moving by one cell along $x$, $y$, or $z$ increases the index by $1$, $N_x$, or $N_xN_y$, respectively. Thus, $E_{y,n+1}$ and $E_{z,n+1}$ belong to the neighbouring cell along $x$. The star in $l_{x,n^*}$, $l_{y,n^*}$, and $l_{z,n^*}$ indicates that the exact indices have been omitted, and should be $l_{x,n+N_xN_y}$, $l_{y,n+N_xN_y}$, and $l_{z,n+N_x}$. This distinction is numerically irrelevant on a uniform grid but must be retained on a non-uniform grid.
 
-The field distribution in the volume of interest is replaced by discrete field values on each computational grid cell $n$. Rather than
-assigning all six field components to grid nodes (which causes problems at material interfaces where some components are discontinuous), the
-components of $\mathbf{E}$ are placed at the midpoints of cell edges $L= l_x, \ l_y, \ l_z$, and the components of the magnetic field
-$\mathbf{H}$ pierce the center of each cell face $A = A_x, \ A_y, \ A_z$. Figure~\ref{fig:comp_cell} shows a schematic of the base
-computational cell $n$, together with the field component locations and their indexation.
+\subsubsection{Cell lengths and areas}
 
-\subsubsection*{Cell lengths and areas}
+Each computational cell $n$, identified by the index triplet $(i,j,k)$, is fully described by its three edge lengths and three face areas. 
 
-Each computational cell $n$, identified by the index triplet $(i,j,k)$, is fully described by its three edge lengths and three face areas.
-The edge lengths are the distances between adjacent grid nodes along each coordinate direction:
+The \textbf{edge lengths} are the distances between adjacent grid nodes along each coordinate direction:
+%
 \begin{equation}
 l_{x,n} = x_{i+1} - x_i, \qquad l_{y,n} = y_{j+1} - y_j, \qquad l_{z,n} = z_{k+1} - z_k.
 \label{eq:edge_lengths}
 \end{equation}
-The face area perpendicular to each coordinate axis is the product of the two transverse edge lengths:
+%
+The \textbf{face areas} perpendicular to each coordinate axis is the product of the two transverse edge lengths:
+%
 \begin{equation}
 A_{x,n} = l_{y,n}\,l_{z,n}, \qquad A_{y,n} = l_{z,n}\,l_{x,n}, \qquad A_{z,n} = l_{x,n}\,l_{y,n}.
 \label{eq:face_areas}
 \end{equation}
-These six scalar quantities per cell carry all the metric information needed to approximate the line and surface integrals in Maxwell's
-equations. They are assembled into two $\{3N \times 3N\}$ diagonal matrices, where $N = N_x N_y N_z$ is the total number of cells and the
-factor of three accounts for the three spatial components of each field quantity:
+%
+These six scalar quantities per cell carry all the metric information needed to approximate the line and surface integrals in Maxwell's equations. They are assembled into two $\{3N \times 3N\}$ diagonal matrices, where $N = N_x N_y N_z$ is the total number of cells and the factor of three accounts for the three spatial components of each field quantity:
+%
 \begin{equation}
 \mathbf{D}_s = \mathrm{Diag}
 \!\left(l_{x,1},\ldots,l_{x,N},\;
@@ -391,14 +330,12 @@ l_{y,1},\ldots,l_{y,N},\; l_{z,1},\ldots,l_{z,N}\right),
 A_{y,1},\ldots,A_{y,N},\; A_{z,1},\ldots,A_{z,N}\right).
 \label{eq:Da}
 \end{equation}
-$\mathbf{D}_s$ will weight the line integrals of $\mathbf{E}$ and $\mathbf{H}$ along cell edges, while $\mathbf{D}_A$ will weight the flux
-integrals of $\mathbf{B}$ and $\mathbf{D}$ through cell faces. Both matrices appear explicitly in the \glspl{mge} derived in
-Sec.~\ref{sec:mge_final}.
+%
+$\mathbf{D}_s$ will weight the line integrals of $\mathbf{E}$ and $\mathbf{H}$ along cell edges, while $\mathbf{D}_A$ will weight the flux integrals of $\mathbf{B}$ and $\mathbf{D}$ through cell faces. Both matrices appear explicitly in the \glspl{mge} derived in Sec.~\ref{sec:mge_final}.
 
-\subsubsection*{Field state vectors}
+\subsubsection{Field state vectors}
 
-Each computational cell allocates the field state vector components. In the \gls{fit} formalism, they are assembled into global $3N$-vectors
-following the lexicographic ordering introduced in Sec.~\ref{sec:mge_integral}:
+Each computational cell contains the field-state-vector components $\mathbf{e}$ and $\mathbf{h}$, representing the independent field unknowns advanced by the solver. In the \gls{fit} formalism, they are assembled into global $3N$-vectors following the lexicographic ordering introduced in Sec.~\ref{sec:mge_integral}:
 \begin{equation}
 \begin{aligned}
 \mathbf{e} &= (E_{x,1},\ldots,E_{x,N},\;
@@ -408,53 +345,55 @@ H_{y,1},\ldots,H_{y,N},\; H_{z,1},\ldots,H_{z,N})^t.
 \end{aligned}
 \label{eq:field_vectors}
 \end{equation}
-These two vectors fully describe the electromagnetic state of the system at any given time. All spatial operations in the \gls{fit}
-framework --- curl, divergence, and their dual counterparts --- are expressed as matrix--vector products acting on $\mathbf{e}$ and
-$\mathbf{h}$.
+These two vectors fully describe the electromagnetic state of the system at any given time. All spatial operations in the \gls{fit} framework--primal curl $\mathbf{C}$, dual curl $\widetilde{\mathbf{C}}$, primal divergence $\mathbf{S}$, and dual divergence $\widetilde{\mathbf{S}}$--are expressed as matrix-vector products acting on $\mathbf{e}$ and $\mathbf{h}$. 
 
-\begin{definition}{A closer look at \glspl{dof} indexation}{dof indexation}
-Notice the field indexes shown in Fig.~\ref{fig:comp_cell}. When moving in the x direction, the lexicographic index $n$ increases by 1.
-Therefore the field components $E_{z, n+1}$ and $E_{y, n+1}$ would already belong to the next computational cell $(n+1)$. Note the described
-lengths $l_{x,n^*}, \ l_{y,n^*}, \ l_{z,n^*}$, denoted with a star in the figure. The indexes would be correct if we use a uniformly spaced
-grid in all three dimensions. However, if different edge lengths per dimension are included in the numerical method, the right indexing for
-each length would be $l_{x,n+N_xN_y}, \ l_{y,n+N_xN_y}$ since they would belong to the next cell in the $z$-direction ($n+N_xN_y$), and
-$l_{z,n+N_x}$, since this edge length would belong to the next cell in the $y$-direction ($n+N_x$).
-\end{definition}
+Field state vectors are associated with line integrals and are therefore allocated to cell edges. The flux densities $\mathbf{b}$ and $\mathbf{d}$, and current density $\mathbf{j}$ can be obtained from the constitutive relations, and they are associated with the computational cell facets, though in practice are not explicitly allocated in memory. Finally, electric charges $\mathbf{q}$ are associated to nodes, since they account for the total charge volumetric density $\mathbf{\rho}$ enclosed in the control volume $V$ defined by the computational cell.
+
+% \begin{definition}{A closer look at DoF indexing}{dof_indexing}
+% Figure~\ref{fig:comp_cell} labels the field \glspl{dof} and edge lengths associated with the computational cell indexed by $n$. Two details of this indexing convention require clarification:
+
+% \begin{itemize}
+% \item Under the lexicographic ordering
+% $n=i+jN_x+kN_xN_y$, moving by one cell in the $x$-direction
+% increases the index by one. Consequently, the field components
+% $E_{y,n+1}$ and $E_{z,n+1}$ are associated with the neighbouring
+% cell in the $x$-direction, indexed by $n+1$.
+
+% \item Some edge lengths in the figure are denoted by
+% $l_{x,n^*}$, $l_{y,n^*}$, and $l_{z,n^*}$, where the star
+% indicates that their exact indices have been omitted for clarity. This distinction is irrelevant on a uniform Cartesian grid because all edges with the same orientation have the same length. On a nonuniform grid, however, the correct indices must be retained. With the convention used in Fig.~\ref{fig:comp_cell}, these lengths are $l_{x,n+N_xN_y},\ l_{y,n+N_xN_y},\ l_{z,n+N_x}$. The first two edges are associated with the neighbouring cell in the $z$-direction, indexed by $n+N_xN_y$, whereas the third is associated with the neighbouring cell in the $y$-direction, indexed by $n+N_x$.
+% \end{itemize}
+% \end{definition}
+
 
 \subsection{Yee cell staggering and the Dual Grid $\widetilde{\mathbf{G}}$}
 \label{sec:mge_yee}
 
-\clearpage
+The placement of the magnetic field on the faces of the computational cell in Fig.~\ref{fig:comp_cell} is not arbitrary. Introduced by Yee~\cite{yee_numerical_1966} in 1966, the staggered-cell arrangement assigns electric and magnetic \glspl{dof} to complementary geometric objects --- edges and faces --- of two interlocking grids offset by half a cell in each coordinate direction. This spatial staggering provides a compatible allocation of the electric and magnetic field components and supports second-order spatial accuracy on regular orthogonal grids. The stability of the complete scheme additionally depends on the time integrator and the selected timestep.
+
+In
+\gls{fit}, the staggered arrangement is transformed into a matrix-based algebraic framework by deriving the discrete operators directly from the
+integral form of Maxwell's equations on the primal--dual cell complex, as illustrated in the schematic in Figure~\ref{fig:yee_cell}. Notice how the dual cells are indexed by $\tilde{n}_k$ nodes located at the top outermost vertex, in contrast to the primal nodes $n_k$ located at the bottom innermost vertex. In the FIT staggered notation, the dual cells appear as \textit{transposed} of the primal cells.
+
 \begin{figure}[htb]
 \centering
-\includegraphics[width=\linewidth]{figures_ch3/fig_yee_grid.pdf}
-\caption{Pair of Yee-staggered primal and dual cells, showing the \gls{dof} allocation}
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_yee_grid.pdf}
+\caption{Pair of Yee-staggered primal and dual cells, showing the \gls{dof} allocation. Due to perspective, only the dual cells $\tilde{p}$ corresponding to primal index $n+1$ and $\tilde{m}$ corresponding to $n+N_x+1$ are represented.}
 \label{fig:yee_cell}
 \end{figure}
 
-The reader may have been intrigued by the placement shown in Fig.~\ref{fig:comp_cell} of the magnetic field, located on the faces of the
-computational cell on the Grid $G$. Indeed, the allocation of electromagnetic field components in the cell discretization is not arbitrary.
-Introduced by Yee~\cite{yee_numerical_1966} in 1966, the staggered-cell arrangement assigns electric and magnetic \glspl{dof} to
-complementary geometric objects -- edges and faces -- of two interlocking grids offset by half a cell in each coordinate direction. This
-spatial staggering is the key ingredient that confers the scheme its numerical stability, second-order accuracy, and the ability to satisfy
-the divergence constraints of Maxwell's equations by construction, without any additional enforcement. In \gls{fit}, this idea is elevated
-to a systematic algebraic framework by deriving the discrete operators directly from the integral form of Maxwell's equations on the
-primal--dual cell complex, as illustrated in the schematic in Figure~\ref{fig:yee_cell}.
+Yee's special field allocation generates a second, \textit{dual grid} $\widetilde{\mathbf{G}}$, in which the magnetic field components $\mathbf{H}$ are placed where the electric field components $\mathbf{E}$ reside in the \textit{primal grid} $\mathbf{G}$, and vice versa: the $\mathbf{H}$ components pierce the centres of the primal faces, which coincide with the edges of the dual cells, while the $\mathbf{E}$ components lie on the primal edges, which coincide with the face centres of the dual cells. For a structured grid formulation\footnote{This thesis focuses on structured grids because of their implementation efficiency. However, the \gls{fit} formulation can be extended to unstructured grids by taking the barycentres of the primal cells as vertices defining the dual grid cells of $\widetilde{\mathbf{G}}$. The
+\gls{fit} formalism remains valid provided that there is a one-to-one relation between the edges of $\mathbf{G}$ crossing the faces of
+$\widetilde{\mathbf{G}}$ and vice versa}, the dual grid $\widetilde{\mathbf{G}}$ is similarly defined by:
 
-Yee's special field allocation generates a second, \textit{dual grid} $\widetilde{\mathbf{G}}$, in which the magnetic field components
-$\mathbf{H}$ are placed where the electric field components $\mathbf{E}$ reside in the \textit{primal grid} $\mathbf{G}$, and vice versa:
-the $\mathbf{H}$ components pierce the centres of the primal faces, which coincide with the edges of the dual cells, while the $\mathbf{E}$
-components lie on the primal edges, which coincide with the face centres of the dual cells. For a structured grid formulation\footnote{This thesis focuses on structured grids due to their implementation efficiency and stability. However it is possible to extend the FIT formulation to non-structured grids, by taking the baricenter of each primal cell $n$ as boundary vertices for
-definition of the dual grid cells of $\tilde{G}$. The FIT formalism will work provided there is a one-to-one
-relation between the cell edges of G cutting through the cell surfaces
-of ˜G and vice versa},  dual grid $\widetilde{\mathbf{G}}$ is
-similarly defined by:
 \begin{equation}
-\widetilde{\mathbf{G}} = \{ (\tilde{x}_i,\, \tilde{y}_j,\, \tilde{z}_k)\quad
-\tilde{x}_0 < \tilde{x}_i < \tilde{x}_{N_x},\ i = 1,\ldots,N_x-1\quad \\
-\tilde{y}_0 < \tilde{y}_j < \tilde{y}_{N_y},\ j = 1,\ldots,N_y-1\quad \\
-\tilde{z}_0 < \tilde{z}_k < \tilde{z}_{N_z},\ k = 1,\ldots,N_z-1\}
+\begin{aligned}
+\widetilde{\mathbf{G}} = \bigl\{(\tilde{x}_i,\,\tilde{y}_j,\,\tilde{z}_k)\ \big|\quad
+&\tilde{x}_0 < \tilde{x}_i < \tilde{x}_{N_x}, &&i = 1,\ldots,N_x-1,\\ &\tilde{y}_0 < \tilde{y}_j < \tilde{y}_{N_y}, &&j = 1,\ldots,N_y-1,\\ &\tilde{z}_0 < \tilde{z}_k < \tilde{z}_{N_z}, &&k = 1,\ldots,N_z-1
+\bigr\}.
+\end{aligned}
 \end{equation}
+
 with the $\tilde{n}$ dual node coordinates located at the midpoints of the primal cell edges:
 \begin{align}
 \tilde{x}_i &= \frac{x_{i+1}+x_i}{2}, \quad 1 \le i \le N_x-1,
@@ -463,17 +402,11 @@ with the $\tilde{n}$ dual node coordinates located at the midpoints of the prima
 \qquad \tilde{y}_J = 0, \\
 \tilde{z}_k &= \frac{z_{k+1}+z_k}{2}, \quad 1 \le k \le N_z-1,
 \qquad \tilde{z}_K = 0.
+\label{eq:dual_grid_truncation}
 \end{align}
-To preserve the operator matricial shape, the dual grid $\widetilde{\mathbf{G}}$ has the same number of $\tilde n$ nodes $N=N_xN_yN_z$ as
-the primal grid $\mathbf{G}$. Notice how, due to the staggering, the last dual node coordinate must be set to zero. The dual grid has one
-fewer interior node than the primal grid in each direction: while the primal grid has $I$ nodes in $x$, the dual grid only has $I-1$
-midpoints. The boundary node $\tilde{x}_I$ therefore has no corresponding primal interval to bisect, and is set to zero to indicate that it
-lies outside the computational domain. In this case, the selected boundary condition (see Sec.~\ref{sec:boundary_conditions}) takes over the
-role of closing the outermost dual cell.
+To preserve the operator matrix shape, the dual grid $\widetilde{\mathbf{G}}$ has the same number of $\tilde n$ nodes $N=N_xN_yN_z$ as the primal grid $\mathbf{G}$. Notice how, due to the staggering, the last dual node coordinate must be set to zero. The dual grid has one fewer interior node than the primal grid in each direction: while the primal grid has $I$ nodes in $x$, the dual grid only has $I-1$ midpoints. The boundary node $\tilde{x}_I$ therefore has no corresponding primal interval to bisect, and is set to zero to indicate that it lies outside the computational domain. In this case, the selected boundary condition (see Sec.~\ref{sec:boundary_conditions}) takes over the role of closing the outermost dual cell.
 
-As shown in Figure \ref{fig:yee_cell}, each dual cell $\tilde{n}$ is therefore centered on a primal node, and its geometry is described by
-dual edge lengths and dual face areas defined in exact analogy with the primal quantities. The dual edge lengths connecting adjacent dual
-nodes are:
+As shown in Figure \ref{fig:yee_cell}, each dual cell $\tilde{n}$ is therefore centered on a primal node, and its geometry is described by dual edge lengths and dual face areas defined in exact analogy with the primal quantities. The dual edge lengths connecting adjacent dual nodes are:
 \begin{equation}
 \tilde{l}_{x,n} = \tilde{x}_{i+1} - \tilde{x}_i, \qquad
 \tilde{l}_{y,n} = \tilde{y}_{j+1} - \tilde{y}_j, \qquad
@@ -486,8 +419,7 @@ and the dual face areas, perpendicular to each coordinate axis, are:
 \tilde{A}_{z,n} = \tilde{l}_{x,n}\,\tilde{l}_{y,n}.
 \end{equation}
 
-Analogously to Eqs.~\eqref{eq:Ds} and \eqref{eq:Da}, the dual edge lengths and face areas are assembled into the corresponding dual diagonal
-matrices $\widetilde{\mathbf{D}}_s$ and $\widetilde{\mathbf{D}}_A$ of size $\{3N\times3N\}$:
+Analogously to Eqs.~\eqref{eq:Ds} and \eqref{eq:Da}, the dual edge lengths and face areas are assembled into the corresponding dual diagonal matrices $\widetilde{\mathbf{D}}_s$ and $\widetilde{\mathbf{D}}_A$ of size $\{3N\times3N\}$:
 \begin{equation}
 \widetilde{\mathbf{D}}_s = \mathrm{Diag}
 \!\left(\tilde{l}_{x,1},\ldots,\tilde{l}_{x,N},\;
@@ -500,80 +432,72 @@ matrices $\widetilde{\mathbf{D}}_s$ and $\widetilde{\mathbf{D}}_A$ of size $\{3N
 \tilde{A}_{y,1},\ldots,\tilde{A}_{y,N},\;
 \tilde{A}_{z,1},\ldots,\tilde{A}_{z,N}\right).
 \end{equation}
-The four matrices $\mathbf{D}_s$, $\mathbf{D}_A$, $\widetilde{\mathbf{D}}_s$, $\widetilde{\mathbf{D}}_A$ together carry all the geometric
-information of the primal--dual grid pair, and are therefore completely defined by the simulation mesh choice.
+The four matrices $\mathbf{D}_s$, $\mathbf{D}_A$, $\widetilde{\mathbf{D}}_s$, $\widetilde{\mathbf{D}}_A$ together carry all the geometric information of the primal--dual grid pair, and are therefore completely defined by the simulation mesh choice.
 
-\subsection{Curl $\mathbf{C}$ and divergence $\mathbf{S}$ operators }
+
+\subsection{Curl $\mathbf{C}$, $\widetilde{\mathbf{C}}$ and divergence $\mathbf{S}$, $\widetilde{\mathbf{S}}$ operators}
 \label{sec:mge_operators}
 
-One of the key advantages of the \gls{fit} formulation is that it discretizes the integral form of Maxwell's equations (see Eqs.
-~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) directly into a set of sparse matrix operators whose entries take only the values $+1$, $-1$,
-or $0$, independent of the simulation mesh. Rather than implementing the field updates as nested loops over grid indices --- as is typical
-in conventional \gls{fdtd} implementations --- the entire spatial discretization is encoded in the topology matrices $\mathbf{C}$,
-$\widetilde{\mathbf{C}}$, $\mathbf{S}$, and $\widetilde{\mathbf{S}}$, which act directly on vectors of field \glspl{dof}. This
-representation stays close to the underlying physics: each matrix row corresponds to a concrete geometric operation, either a circulation
-integral around a cell edge loop or a flux integral over a cell face, in direct correspondence with the integral laws from which it is
-derived. At the same time, expressing the spatial operators as sparse matrix--vector products exposes the full potential for computational
-efficiency, enabling vectorized and cache-friendly evaluation on modern hardware without any modification to the mathematical structure of
-the equations.
+One of the key advantages of the \gls{fit} formulation is that it discretizes the integral form of Maxwell's equations (see Eqs. ~\eqref{eq:Maxwell:a}--\eqref{eq:Maxwell:d}) directly into a set of sparse matrix operators whose entries take only the values $+1$, $-1$, or $0$, independent of the simulation mesh.
 
-\clearpage
+Rather than implementing the field updates as nested loops over grid indices --- as is typical in conventional \gls{fdtd} implementations --- the entire spatial discretization is encoded in the topology matrices $\mathbf{C}$, $\widetilde{\mathbf{C}}$, $\mathbf{S}$, and $\widetilde{\mathbf{S}}$, which act directly on vectors of field \glspl{dof}. This representation stays close to the underlying physics: each matrix row corresponds to a concrete geometric operation, either a circulation integral around a cell edge loop or a flux integral over a cell face, in direct correspondence with the integral laws from which it is derived. At the same time, expressing the spatial operators as sparse matrix--vector products exposes the full potential for computational efficiency, enabling vectorized and cache-friendly evaluation on modern hardware without any modification to the mathematical structure of the equations.
 
-\subsubsection*{Curl operator}
+\subsubsection{Curl operators $\mathbf{C}$ and $\widetilde{\mathbf{C}}$}
 
-\begin{figure}[h]
+\begin{figure}[htb]
 \centering
-\includegraphics[width=\linewidth]{figures_ch3/fig_curl.pdf}
-\caption{Schematic of the curl operation on a pair of Yee primal and dual cells,
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_curl.pdf}
+\caption{Schematic of the primal $\mathbf{C}$ and dual $\widetilde{\mathbf{C}}$ curl operations on a pair of Yee primal and dual cells,
 showing the field quantities involved.}
 \label{fig:yee_curl}
 \end{figure}
 
-The discrete curl operator is constructed by applying Faraday's law in integral form to every face of each primal cell. Following the
-approach of Weiland~\cite{weiland_finite_2003}, adapted to this thesis' $(x,y,z)$ nomenclature, a first-order integration formula is used to
-approximate the line integral on the left-hand side of Eq.~\eqref{eq:Maxwell:a} along the boundary of an elementary cell face $\partial A$. Consider the
-$z$-directed face $A_{z,n}$ of primal cell $n$: only the two tangential components $E_x$ and $E_y$ contribute to the circulation, and the
-boundary integral reduces to
+The \textbf{primal curl operator} $\mathbf{C}$ is constructed by applying Faraday's law in integral form to every face of each primal cell. Following the approach of Weiland~\cite{weiland_finite_2003}, adapted to this thesis' $(x,y,z)$ nomenclature, a first-order integration formula is used to approximate the line integral on the left-hand side of Eq.~\eqref{eq:Maxwell:a} along the boundary of an elementary cell face $\partial A$.
 
+Consider the $z$-directed face $A_{z,n}$ of primal cell $n$: only the two tangential components $E_x$ and $E_y$ contribute to the circulation, and the boundary integral reduces to
 \begin{equation}
 \oint_{\partial A_{z,n}} \mathbf{E}\cdot\mathrm{d}\mathbf{s} = l_{x,n}\,E_{x,n} + l_{y,n}\,E_{y,n+1} - l_{x,n}\,E_{x,n+N_x} - l_{y,n}\,E_{y,n}
 + O(l_{x,n}^2) + O(l_{y,n}^2),
 \label{eq:curl_lhs}
 \end{equation}
-
-where the edge lengths $l_{x,n}$, $l_{y,n}$ are defined in Eq.~\eqref{eq:edge_lengths}. Applying the same first-order approximation to the
-right-hand side of Eq.~\eqref{eq:Maxwell:a}, the surface integral of the magnetic flux density $\partial\mathbf{B}/\partial t$ over the same face $A_{z,n}$ reduces to
-
+where the edge lengths $l_{x,n}$, $l_{y,n}$ are defined in Eq.~\eqref{eq:edge_lengths}. Applying the same first-order approximation to the right-hand side of Eq.~\eqref{eq:Maxwell:a}, the surface integral of the magnetic flux density $\partial\mathbf{B}/\partial t$ over the same face $A_{z,n}$ reduces to
 \begin{equation}
 \iint_{A_{z,n}} \frac{\partial \mathbf{B}}{\partial t}\cdot\mathrm{d}\mathbf{A} = A_{z,n}\,\frac{\partial B_{z,n}}{\partial t}
 + O\!\left((l_{x,n}\,l_{y,n})^2\right).
 \label{eq:curl_rhs}
 \end{equation}
+Equating Eqs.~\eqref{eq:curl_lhs} and~\eqref{eq:curl_rhs} yields a discrete replacement for Faraday's law on the $z$-directed face of every cell in the grid. In order to describe these equations for all surfaces in the computational domain, the primal curl operator $\mathbf{C}$ is introduced. Because the lengths and areas are already encoded in their respective diagonal matrices, $\mathbf{C}$ is independent of the grid metric and contains only the entries $+1$, $-1$, and $0$ arranged in a $\{3N \times 3N\}$ sparse matrix.
 
-Equating Eqs.~\eqref{eq:curl_lhs} and~\eqref{eq:curl_rhs} yields a discrete replacement for Faraday's law on the $z$-directed face of every
-cell in the grid. In order to describe these equations for all surfaces in the computational domain, the discretization matrix $C$, the primal curl operator, is introduced. Independent from the lengths and areas (as they're already encoded in their respective diagonal matrices), $C$ is composed only of bands of +1, -1, taking 0 elsewhere. 
-
-An example of the circulation is illustrated in Fig.~\ref{fig:yee_curl}, applied on the z-oriented faces of the dual and primal cell pair.  Focusing only on the primal cell and collecting the contributions with their correct signs gives the $z$-component of the primal curl, which would correspond to one row of the C matrix:
-
+To derive the operator sparsity, we analyse the example of the circulation, as illustrated in Fig.~\ref{fig:yee_curl}, applied on the z-oriented faces of the dual and primal cells with the corresponding magnetic and electric field indexes. Focusing only on the $n$ primal cell and collecting the contributions with their correct signs gives the $z$-component of the primal curl $\mathbf{C}$, which corresponds to one row $\{z,n\}$ of the matrix:
+%
 \begin{equation}
-(\mathbf{C}\,\mathbf{e})_{z,n} = E_{x,n} - E_{x,n+N_x} - E_{y,n} + E_{y,n+1},
+(\mathbf{C}\mathbf{e})_{z,n} =E_{x,n}-E_{x,n+N_x}-E_{y,n}+E_{y,n+1}.
 \end{equation}
-
-Notice the field index offsets $I=1$ and $J=N_x$ corresponding to the linear lexico-graphic ordering between the field components that participate in the operation. This reveals the correct placement of the +1 and -1 bands. Repeating this
-construction for all three face orientations and all $N$ cells, three elementary difference matrices $\mathbf{P}_x$,
-$\mathbf{P}_y$, $\mathbf{P}_z$ can be obtained, each encoding the $\pm1$ connectivity pattern between adjacent nodes along one coordinate direction:
-
+%
+Notice the field index offsets $I=1$ and $J=N_x$ corresponding to the linear lexicographic ordering between the field components that participate in the operation. This reveals the correct placement of the $+1$ and $-1$ bands. Repeating this construction for all three face orientations and all $N$ cells gives three elementary difference matrices $\mathbf{P}_x$, $\mathbf{P}_y$, and $\mathbf{P}_z$, each encoding the $\pm1$ connectivity pattern between adjacent nodes along one coordinate direction:
+%
 \begin{equation}
-\mathbf{P}_x := (\mathbf{P}_x)_{m,p} = \begin{cases} -1, & p = m \\ +1, & p = m+1 \\ 0, & \text{else} \end{cases} \quad \\
-\mathbf{P}_y := (\mathbf{P}_y)_{m,p} = \begin{cases} -1, & p = m \\ +1, & p = m+N_x \\ 0, & \text{else} \end{cases} \quad \\ 
-\mathbf{P}_z := (\mathbf{P}_z)_{m,p} = \begin{cases} -1, & p = m \\ +1, & p = m+N_xN_y \\ 0, & \text{else} \end{cases}
+\begin{aligned}
+(\mathbf{P}_x)_{m,p} &=
+\begin{cases}
+-1, & p=m,\\ +1, & p=m+1,\\ 0, & \text{otherwise},
+\end{cases}
+& (\mathbf{P}_y)_{m,p} &=
+\begin{cases}
+-1, & p=m,\\ +1, & p=m+N_x,\\ 0, & \text{otherwise},
+\end{cases}
+\\[4pt]
+(\mathbf{P}_z)_{m,p} &=
+\begin{cases}
+-1, & p=m,\\ +1, & p=m+N_xN_y,\\ 0, & \text{otherwise},
+\end{cases}
+&& m,p=1,\ldots,N.
+\end{aligned}
 \label{eq:Pmatrices}
 \end{equation}
-\begin{equation*}
-m,p = 1,\ldots,N
-\end{equation*}
-
-Using the matrices Px, Pz, Py as building blocks, the final sparcity of the curl matrix is obtained:
+%
+Using the matrices $\mathbf{P}_x$, $\mathbf{P}_y$, and $\mathbf{P}_z$ as building blocks, the final sparsity pattern of the primal curl matrix $\mathbf{C}$ is obtained:
+%
 \begin{equation}
 \mathbf{C} =
 \begin{pmatrix}
@@ -583,241 +507,1280 @@ Using the matrices Px, Pz, Py as building blocks, the final sparcity of the curl
 \end{pmatrix}
 \label{eq:C_matrix}
 \end{equation}
+%
+By combining the curl operator $\mathbf{C}$ with the diagonal matrix of primal edge lengths $\mathbf{D_s}$, the circulation of the electric field is discretized on the left-hand side. Similarly, the diagonal matrix of primal face areas $\mathbf{D_A}$ discretizes the magnetic-flux surface integral on the right-hand side. This leads to the discrete form of Faraday's law introduced in Eq.~\eqref{eq:MGE:faraday}:
 
-The dual curl operator $\widetilde{\mathbf{C}}$ is constructed in exactly the same way, but now applied to the faces of the dual cells. Its
-role is to compute the circulation of $\mathbf{H}$ around each dual face, as required by Amp\`ere's law.  Fig.~\ref{fig:yee_curl} illustrates the curl operation on H quantities in the z oriented dual face. To give an additional example, we analyze the curl operation applied to and x-oriented dual face. As expected from the matrix sparcity, it should involve only the $H_y$ and $H_z$
-components on the surrounding $y$- and $z$-oriented edges:
 \begin{equation}
-(\widetilde{\mathbf{C}}\,\mathbf{h})_{x,\tilde{n}} = -H_{y,n} + H_{y,\,n+N_xN_y} + H_{z,n} - H_{z,\,n+N_x}
+\boxed{
+\mathbf{C}\,\mathbf{D}_s\,\mathbf{e}
+=-\mathbf{D}_A\,\frac{\partial\mathbf{b}}{\partial t} }
+\label{eq:MGE:faraday_final}
 \end{equation}
-Even if the H field components are allocated in the dual cell, the $\mathbf{H}$ components are indexed on the primal grid according to the staggering convention. However, notice how the signs are inverted compared to the primal curl, resembling a counter clockwise circulation. This evidences a key algebraic property of the
-\gls{fit} discretization, is that the dual curl matrix $\tilde{C}$ is simply the transpose of the primal curl matrix:
+
+The \textbf{dual curl operator} $\widetilde{\mathbf{C}}$ is constructed in the same way, but on the faces of the dual cells. In accordance with the Amp\`ere--Maxwell law in Eq.~\eqref{eq:Maxwell:b}, it computes the circulation of $\mathbf{H}$ around each dual face and relates it to the electric displacement current $\partial\mathbf{D}/\partial t$ and the current density $\mathbf{J}$ passing through that face.
+
+Fig.~\ref{fig:yee_curl} illustrates the dual curl $\widetilde{\mathbf{C}}$ applied to the magnetic-field vector $\mathbf{h}$ around a $z$-oriented dual face. To allow a direct comparison with the corresponding row of the primal curl $\mathbf{C}$, the circulation is evaluated for the same orientation. It therefore involves only the $H_x$ and $H_y$ components located on the surrounding $x$- and $y$-oriented dual edges. For the dual z-oriented face associated with index $n$, the corresponding row $\{z,n\}$ of $\widetilde{\mathbf{C}}$ yields:
+%
+\begin{equation}
+(\widetilde{\mathbf{C}}\mathbf{h})_{z,n} = H_{x,n-N_x}-H_{x,n} -H_{y,n-1}+H_{y,n}.
+\end{equation}
+%
+Although the $\mathbf{H}$ components are allocated on dual edges, they are indexed according to the corresponding primal faces under the staggering convention. The reversed signs reflect the opposite orientation of the dual circulation\footnote{This relation is an exact consequence of the primal--dual topology. The primal curl $\mathbf{C}$ maps the edge values $\mathbf{e}$ to primal-face circulations: each row of $\mathbf{C}$ corresponds to one primal face, while each column corresponds to one primal edge. On the dual grid, $\mathbf{h}$ is stored on dual edges and indexed as primal faces, whereas $\mathbf{e}$ now pierces the dual faces, yet still indexed as primal edges. The dual curl $\widetilde{\mathbf{C}}$ therefore exchanges the roles of faces and edges, making it the transpose of the primal curl operator $\mathbf{C}$.}. This leads to a key algebraic property of the \gls{fit} discretization: the dual curl matrix $\widetilde{\mathbf{C}}$ is the transpose of the primal curl matrix
+$\mathbf{C}$.
+
 \begin{equation}
 \widetilde{\mathbf{C}}
 =
 \mathbf{C}^{\mathrm{T}}
 =
 \begin{pmatrix}
-0 & \mathbf{P}_z^{\mathrm{T}} & -\mathbf{P}_y^{\mathrm{T}} \\
--\mathbf{P}_z^{\mathrm{T}} & 0 & \mathbf{P}_x^{\mathrm{T}} \\
+0 & \mathbf{P}_z^{\mathrm{T}} & -\mathbf{P}_y^{\mathrm{T}} \\ -\mathbf{P}_z^{\mathrm{T}} & 0 & \mathbf{P}_x^{\mathrm{T}} \\
 \mathbf{P}_y^{\mathrm{T}} & -\mathbf{P}_x^{\mathrm{T}} & 0
 \end{pmatrix}.
 \label{eq:C_dual_matrix}
 \end{equation}
 
-This relation is not an approximation but an exact consequence of the primal--dual topology. Going back to the MGE \ref{} the primal curl maps edge quantities $\mathbf{e}$ to face (flux) quantities $\mathbf{b}$: each row computes the circulation around one primal face, while each column corresponds to one primal edge. On the dual grid, $\mathbf{h}$ is stored on dual edges and indexed as primal faces, while $\mathbf{d}$ is stored on dual faces and indexed as primal edges. Thus, the dual curl naturally exchanges the roles of faces and edges, making it the transpose of the primal curl operator.
+Introducing the dual metric matrices $\widetilde{\mathbf{D}}_s$ and $\widetilde{\mathbf{D}}_A$ gives the Amp\`ere--Maxwell grid equation introduced in Eq.~\eqref{eq:MGE:ampere}:
 
-\subsubsection*{Divergence operator}
-
-\begin{figure}[h]
-\centering
-\includegraphics[width=\linewidth]{figures_ch3/fig_divergence.pdf}
-\caption{Schematic of the divergence operation on a primal and dual cell.}
-\label{fig:yee_divergence}
-\end{figure}
-
-The discrete divergence operator is obtained by applying Gauss's law in integral form to each cell, summing the signed normal flux
-components through all six faces. Applying it to the volume $V_n$ of the primal cell $n$, the net outward flux of $\mathbf{H}$ through its faces involves the six
-$\mathbf{H}$ components sitting at the face centres, as shown in Fig.~\ref{fig:yee_divergence}:
 \begin{equation}
-(\mathbf{S}\,\mathbf{h})_n = - H_{x,n} + H_{x,\,n+1} - H_{y,n} + H_{y,\,n+N_x} - H_{z,n} + H_{z,\,n+N_x N_y}.
+\boxed{
+\widetilde{\mathbf{C}}\,\widetilde{\mathbf{D}}_s\,\mathbf{h}
+=\widetilde{\mathbf{D}}_A
+\left(
+\frac{\partial\mathbf{d}}{\partial t}+\mathbf{j}
+\right)
+}
+\label{eq:MGE:ampere_final}
 \end{equation}
-Assembling this for all $N$ primal cells gives the primal divergence matrix of size $\{N \times 3N \}$:
-\begin{equation}
-\mathbf{S} = \bigl(\mathbf{P}_x\;\big|\;\mathbf{P}_y\;\big|\;\mathbf{P}_z\bigr),
-\label{eq:S_matrix}
-\end{equation}
-which maps the $3N$-vector of $\mathbf{H}$ components to an $N$-vector of net fluxes, one per primal cell. The (non-existent) magnetic charges would be allocated to the nodes of the dual grid $\tilde{G}$, located at the center of the primal grid where S is applied. Enforcing
-$\mathbf{S}\,\mathbf{D}_A\,\mathbf{b} = 0$ ensures that the discrete magnetic flux is divergence-free by construction.
-
-The dual divergence operator $\widetilde{\mathbf{S}}$ acts on the dual cells $\tilde{n}$ in the same fashion, now accumulating the net
-outward flux of $\mathbf{E}$ through the six faces of each dual cell volume $\tilde{V}_n$. From Fig.~\ref{fig:yee_divergence}:
-\begin{equation}
-(\widetilde{\mathbf{S}}\,\mathbf{e})_{\tilde{n}} = - E_{x,n} + E_{x,\,n+1} - E_{y,n} + E_{y,\,n+N_x} - E_{z,n} + E_{z,\,n+N_x N_y},
-\end{equation}
-yielding the dual divergence matrix:
-\begin{equation}
-\widetilde{\mathbf{S}} =
-\bigl(\mathbf{P}_x^t\;\big|\;\mathbf{P}_y^t\;\big|\;\mathbf{P}_z^t\bigr).
-\end{equation}
-The equation $\widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\left(\dfrac{\partial \mathbf{d}}{\partial t}+\mathbf{j}\right)=q$ expresses
-the discrete charge continuity equation on the dual grid. This equation dictates that the (possibly existing) electric charges $q$ are defined on nodes of the primal grid $G$, placed at the center of the dual cell volume $\tilde{V}_n$. 
 
 \clearpage
+\subsubsection{Divergence operators $\mathbf{S}$ and $\widetilde{\mathbf{S}}$}
+
+While the curl operators describe circulations around grid faces, the divergence operators describe the net flux leaving a grid cell, as shown in Fig.~\ref{fig:yee_divergence}. Although only the electric- and magnetic-field intensity vectors $\mathbf e$ and $\mathbf h$ are advanced as independent field unknowns, the divergence equations are naturally written in terms of the corresponding flux-density vectors $\mathbf d$ and $\mathbf b$. These quantities are obtained through the discrete material relations and are associated with the dual and primal faces, respectively.
+%
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_divergence.pdf}
+\caption{Schematic of the primal divergence $\mathbf{S}$ and dual
+divergence $\widetilde{\mathbf{S}}$ applied to a primal and a dual cell, respectively.}
+\label{fig:yee_divergence}
+\end{figure}
+%
+The primal divergence operator $\mathbf{S}$ follows from applying Gauss's law for magnetism in integral form to each primal cell. For the primal cell volume $V_n$, it adds the magnetic fluxes crossing its six faces with signs determined by their outward orientations. At the topology level, this operation is written as
+%
+\begin{equation}
+(\mathbf{S}\mathbf{b})_n = -B_{x,n}+B_{x,n+1} -B_{y,n}+B_{y,n+N_x} -B_{z,n}+B_{z,n+N_xN_y}.
+\end{equation}
+%
+Here, this expression shows only the signed contribution of the face components. The corresponding physical fluxes are obtained by multiplying the magnetic flux-density vector $\mathbf b$ by the primal face-area matrix $\mathbf D_A$.
+
+Assembling the topology operation for all $N$ primal cells gives the primal divergence matrix $\mathbf{S}$ of size $\{N\times 3N\}$:
+%
+\begin{equation}
+\mathbf{S}
+=
+\bigl(
+\mathbf{P}_x
+\;\big|\;
+\mathbf{P}_y
+\;\big|\;
+\mathbf{P}_z
+\bigr).
+\label{eq:S_matrix}
+\end{equation}
+%
+The product $\mathbf{S}\mathbf{D}_A\mathbf b$ therefore gives one net outward magnetic flux per primal cell. This leads to Gauss's magnetic grid equation introduced in Eq.~\eqref{eq:MGE:gauss_mag}:
+
+\begin{equation}
+\boxed{
+\mathbf{S}\mathbf{D}_A\mathbf{b}
+=
+\mathbf{0}
+}
+\label{eq:MGE:gauss_mag_final}
+\end{equation}
+
+The result is associated with the primal cell volumes, whose centres coincide with nodes of the dual grid $\widetilde{G}$. Since magnetic charges do not exist, the net magnetic flux through every closed primal cell is zero.
+
+The dual divergence operator $\widetilde{\mathbf{S}}$ is constructed analogously on the dual grid. For each dual cell volume $\widetilde V_n$, it adds the electric fluxes crossing its six dual faces. At the topology level, the operation is
+%
+\begin{equation}
+(\widetilde{\mathbf{S}}\mathbf{d})_{n} = -D_{x,n}+D_{x,n-1} -D_{y,n}+D_{y,n-N_x} -D_{z,n}+D_{z,n-N_xN_y},
+\end{equation}
+%
+Again using the transpose of the topology matrices, we arrive to the definition of $\widetilde{\mathbf{S}}$:
+%
+\begin{equation}
+\widetilde{\mathbf{S}}
+=
+\bigl(
+\mathbf{P}_x^{\mathrm{T}}
+\;\big|\;
+\mathbf{P}_y^{\mathrm{T}}
+\;\big|\;
+\mathbf{P}_z^{\mathrm{T}}
+\bigr).
+\end{equation}
+%
+Notice how the relation $\widetilde{\mathbf{S}} = \mathbf{S}^T$ does not hold here, as it previously did for the dual Curl operator. Since the divergence operator is not a squared matrix, the transpose of $\mathbf{S}$ gives instead the discrete gradient operator $\mathbf{P}=-\mathbf{S}^T$, a matrix of size $\{3N\times N\}$. Including the dual face areas through $\widetilde{\mathbf{D}}_A$, the product $\widetilde{\mathbf{S}}\widetilde{\mathbf{D}}_A\mathbf d$ gives the net electric flux leaving each dual cell. Gauss's electric grid equation introduced in Eq.~\eqref{eq:MGE:gauss_el} is therefore
+
+\begin{equation}
+\boxed{
+\widetilde{\mathbf{S}}
+\widetilde{\mathbf{D}}_A\mathbf{d}
+=
+\mathbf{q}
+}
+\label{eq:MGE:gauss_el_final}
+\end{equation}
+
+The charge vector $\mathbf q$ contains the total electric charge within each dual cell and is indexed by the primal node located at its centre. Equivalently, it can be related to the volumetric charge-density vector $\boldsymbol{\rho}$ through
+%
+\begin{equation}
+\mathbf q
+=
+\widetilde{\mathbf D}_V\boldsymbol{\rho},
+\end{equation}
+%
+where the diagonal matrix $\widetilde{\mathbf D}_V$ contains the dual-cell volumes, which for structured uniform grids can be considered a constant.
 
 \subsection{Divergence conservation}
 
-An important property of the Finite Integration Technique is that charge conservation (also referred to as divergence conservation) is an intrinsic consequence of the discrete topological operators rather than an additional constraint imposed on the numerical solution. This property follows directly from the exact incidence relations of the primal--dual cell complex. Here's a short demonstration for the reader
+An important property of the \gls{fit} spatial discretization is that the discrete continuity equation follows directly from the topological relations of the primal--dual cell complex. This property, commonly referred to as divergence conservation, can be demonstrated using the notation introduced above. The discrete counterpart of the vector-calculus identity $\nabla\cdot(\nabla\times\mathbf{A})=0$ is, for the primal and dual operators,
+\begin{equation}
+\widetilde{\mathbf{S}}\widetilde{\mathbf{C}}=\mathbf{0},
+\qquad
+\mathbf{S}\mathbf{C}=\mathbf{0}.
+\label{eq:discrete_div_curl}
+\end{equation}
+The product vanishes identically because each oriented edge of a cell boundary occurs twice with opposite signs. This topological identity is independent of the grid metric and provides a useful consistency check for the discrete operators. Applying the dual divergence $\widetilde{\mathbf{S}}$ to the Amp\`ere--Maxwell grid equation~\eqref{eq:MGE:ampere}, using $\widetilde{\mathbf{S}}\widetilde{\mathbf{C}}=\mathbf{0}$, and substituting Gauss's electric grid equation~\eqref{eq:MGE:gauss_el} gives
+\begin{align}
+\widetilde{\mathbf{S}}\widetilde{\mathbf{D}}_A
+\left(\frac{\partial\mathbf{d}}{\partial t}+\mathbf{j}\right)
+&=\mathbf{0},
+\\
+\frac{\partial}{\partial t}
+\left(\widetilde{\mathbf{S}}\widetilde{\mathbf{D}}_A\mathbf{d}\right)
++\widetilde{\mathbf{S}}\widetilde{\mathbf{D}}_A\mathbf{j} &=\mathbf{0},
+\end{align}
+\begin{equation}
+\boxed{
+\frac{\partial\mathbf{q}}{\partial t}
++\widetilde{\mathbf{S}}\widetilde{\mathbf{D}}_A\mathbf{j} =\mathbf{0} }.
+\label{eq:discrete_continuity}
+\end{equation}
+This is the grid counterpart of the continuous continuity equation $\partial\rho/\partial t+\nabla\cdot\mathbf{J}=0$. Therefore, the \gls{fit} spatial operators reproduce the continuity relation exactly. In a time-domain implementation, Gauss's electric law is preserved by the curl update provided that it is satisfied by the initial conditions, the discretized source obeys Eq.~\eqref{eq:discrete_continuity}, and the time-integration scheme maintains the same compatible update. Under these conditions, the two curl equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere} can be advanced without a separate divergence-correction step.
 
-Starting from the discrete Ampère--Maxwell law,
+
+% -----------------------------------------------
+\section{Electromagnetic material properties}
+\label{sec:material_properties}
+
+The previous section introduced the grid discretization, the allocation of the field quantities, and the construction of the FIT operators. To complete the
+\gls{mge} formulation, the electric- and magnetic-field intensities
+$\mathbf{e}$ and $\mathbf{h}$ must now be related to the corresponding electric and magnetic flux densities $\mathbf{d}$ and $\mathbf{b}$, and to the electric current density $\mathbf{j}$. These relations are determined by the permittivity $\boldsymbol{\varepsilon}$, permeability $\boldsymbol{\mu}$, and electrical conductivity $\boldsymbol{\sigma}$ of the materials within the computational domain.
+
+\subsection{ Electromagnetic permittivity and losses}
+In the frequency domain, dielectric and conduction losses can be represented through an effective complex permittivity. For the $\exp(\mathrm{j}\omega t)$ convention, this quantity can be written as
 
 \begin{equation}
-    \widetilde{\mathbf{C}} \, \widehat{\mathbf{h}}
-    =
-    \frac{d\widehat{\mathbf{d}}}{dt}
-    +
-    \widehat{\mathbf{j}},
+\boldsymbol{\varepsilon}_{\mathrm{c}}(\omega)
+=
+\boldsymbol{\varepsilon}'(\omega)
+-
+\mathrm{j}
+\left[
+\boldsymbol{\varepsilon}''(\omega)
++
+\frac{\boldsymbol{\sigma}(\omega)}{\omega}
+\right],
+\label{eq:complex_permittivity}
 \end{equation}
 
-the dual divergence operator is applied to both sides,
+where $\boldsymbol{\varepsilon}'$ describes the in-phase dielectric response or stored electric energy, $\boldsymbol{\varepsilon}''$ represents dielectric losses, and $\boldsymbol{\sigma}$ accounts for conduction losses. Time-domain electromagnetic codes such as MEEP~\cite{oskooi_meep_2010} and EMcLAW~\cite{moreno_emclaw_2021} can reproduce such frequency-dependent material responses by separating the instantaneous and delayed contributions to the electric flux density:
 
 \begin{equation}
-    \widetilde{\mathbf{S}} \,
-    \widetilde{\mathbf{C}} \,
-    \widehat{\mathbf{h}}
-    =
-    \widetilde{\mathbf{S}}
-    \left(
-    \frac{d\widehat{\mathbf{d}}}{dt}
-    +
-    \widehat{\mathbf{j}}
-    \right).
+\mathbf{D}(t)
+=
+\boldsymbol{\varepsilon}_{\infty}\mathbf{E}(t)
++
+\mathbf{P}(t),
+\label{eq:polarization_material_model}
 \end{equation}
 
-Following the vector mathematical identity divcurl = 0 
+where absolute permittivity $\boldsymbol{\varepsilon}_{\infty}$ represents the instantaneous high-frequency response and the polarization field $\mathbf{P}$ evolves according to an auxiliary time-domain equation that accounts for the delayed material response.
+
+The present formulation is restricted to non-dispersive materials with instantaneous dielectric response and Ohmic conduction\footnote{In future work, the present formulation could be extended to frequency-dependent materials without modifying the FIT spatial discretization by introducing an auxiliary polarization vector $\mathbf{p}$, corresponding to the discrete representation of $\mathbf{P}(t)$. Its evolution would be governed by a material-dependent model~\cite{hulseDispersiveModelsFinitedifference1994}, such as Debye, Drude, or Lorentz, and advanced alongside the electromagnetic-field vectors $\mathbf{e}$ and $\mathbf{h}$.}. The real-valued permittivity $\boldsymbol{\varepsilon}$ and conductivity $\boldsymbol{\sigma}$ can therefore be treated separately: the former relates the electric-field intensity to the electric flux density, while the latter relates it to the conduction-current density. The corresponding discrete constitutive relations are
+%
 \begin{equation}
-    \nabla\cdot(\nabla\times\mathbf{A})=0.
+\begin{aligned}
+\mathbf{d}
+&=
+\mathbf{M}_{\varepsilon}\mathbf{e},
+\\
+\mathbf{b}
+&=
+\mathbf{M}_{\mu}\mathbf{h},
+\\
+\mathbf{j}_{\sigma}
+&=
+\mathbf{M}_{\sigma}\mathbf{e}.
+\end{aligned}
+\label{eq:discrete_constitutive_relations}
 \end{equation}
-
-The product of the dual divergence and dual curl operators, as in the continuous case, vanishes identically because every interior edge is shared by two neighbouring faces with opposite orientation , for both primal and dual quantities:
-
+%
+An externally imposed current density can be included separately, such that
+%
 \begin{equation}
-    \widetilde{\mathbf{S}}\widetilde{\mathbf{C}}=\mathbf{0}, \quad  \mathbf{S}\mathbf{C} = \mathbf{0}
+\mathbf{j}
+=
+\mathbf{j}_{\sigma}
++
+\mathbf{j}_{\mathrm{src}}
+=
+\mathbf{M}_{\sigma}\mathbf{e}
++
+\mathbf{j}_{\mathrm{src}}.
+\label{eq:total_current_density}
 \end{equation}
-This identity is an important property of the FIT formalism and is an exact consequence of the connectivity of the primal--dual topology and therefore holds independently of the mesh geometry and for every simulation timestep, allowing to check for numerical and physical correctness of simulations.
-
-It follows that
-
+%
+\subsection{ Discrete tensor formulation}
+One advantage of the FIT formulation is its flexibility in representing different materials within the simulation domain. Recalling the continuum form of Maxwell's equations introduced in Section~\ref{sec:mge_final}, the constitutive properties are, in the most general linear anisotropic case, described locally by the frequency-independent rank-2 tensors
+%
 \begin{equation}
-    \widetilde{\mathbf{S}} \,
-    \widetilde{\mathbf{C}} \,
-    \widehat{\mathbf{h}}
-    =
-    \widetilde{\mathbf{S}}
-    \left(
-    \frac{d\widehat{\mathbf{d}}}{dt}
-    +
-    \widehat{\mathbf{j}}
-    \right)
-    =0.
+\begin{aligned}
+\boldsymbol{\varepsilon}
+&=
+\begin{pmatrix}
+\varepsilon_{xx} & \varepsilon_{xy} & \varepsilon_{xz} \\
+\varepsilon_{yx} & \varepsilon_{yy} & \varepsilon_{yz} \\
+\varepsilon_{zx} & \varepsilon_{zy} & \varepsilon_{zz}
+\end{pmatrix},
+&
+\boldsymbol{\mu}
+&=
+\begin{pmatrix}
+\mu_{xx} & \mu_{xy} & \mu_{xz} \\
+\mu_{yx} & \mu_{yy} & \mu_{yz} \\
+\mu_{zx} & \mu_{zy} & \mu_{zz}
+\end{pmatrix},
+&
+\boldsymbol{\sigma}
+&=
+\begin{pmatrix}
+\sigma_{xx} & \sigma_{xy} & \sigma_{xz} \\
+\sigma_{yx} & \sigma_{yy} & \sigma_{yz} \\
+\sigma_{zx} & \sigma_{zy} & \sigma_{zz}
+\end{pmatrix}.
+\end{aligned}
+\label{eq:material_tensors}
 \end{equation}
+%
+Each rank-2 tensor describes the local constitutive response of the material at one spatial position. The FIT material matrices $\mathbf{M}_{\varepsilon}$, $\mathbf{M}_{\mu}$, and $\mathbf{M}_{\sigma}$ assemble these local properties for all field components of the computational grid. In the convention adopted throughout this thesis, these matrices contain only the material properties in SI units; the grid lengths, areas, and volumes remain in the separate metric matrices introduced in Section~\ref{sec:mge_integral}.
 
-Since the divergence operator is purely topological and independent of time, the time derivative may be exchanged with the divergence operator,
-
+For isotropic but spatially varying materials, the material matrices are diagonal and have dimensions $3N\times3N$. Using the component-wise ordering introduced for the field vectors, they read
+%
 \begin{equation}
-    \frac{d}{dt}
-    \left(
-    \widetilde{\mathbf{S}}\widehat{\mathbf{d}}
-    \right)
-    +
-    \widetilde{\mathbf{S}}\widehat{\mathbf{j}}
-    =0.
+\begin{aligned}
+\mathbf{M}_{\varepsilon}
+&=
+\operatorname{diag}
+\left(
+\varepsilon_{x,1},\ldots,\varepsilon_{x,N},
+\varepsilon_{y,1},\ldots,\varepsilon_{y,N},
+\varepsilon_{z,1},\ldots,\varepsilon_{z,N}
+\right),
+\\
+\mathbf{M}_{\mu}
+&=
+\operatorname{diag}
+\left(
+\mu_{x,1},\ldots,\mu_{x,N},
+\mu_{y,1},\ldots,\mu_{y,N},
+\mu_{z,1},\ldots,\mu_{z,N}
+\right),
+\\
+\mathbf{M}_{\sigma}
+&=
+\operatorname{diag}
+\left(
+\sigma_{x,1},\ldots,\sigma_{x,N},
+\sigma_{y,1},\ldots,\sigma_{y,N},
+\sigma_{z,1},\ldots,\sigma_{z,N}
+\right).
+\end{aligned}
+\label{eq:diagonal_material_matrices}
 \end{equation}
-
-Finally, invoking the discrete Gauss law, which in MGE form reads
-
+%
+For an isotropic material, the three directional values associated with a given position are equal:
+%
 \begin{equation}
-    \widetilde{\mathbf{S}}\widehat{\mathbf{d}}
-    =
-    \widehat{\mathbf{q}},
+\varepsilon_{x,n}
+=
+\varepsilon_{y,n}
+=
+\varepsilon_{z,n},
+\qquad
+\mu_{x,n}
+=
+\mu_{y,n}
+=
+\mu_{z,n},
+\qquad
+\sigma_{x,n}
+=
+\sigma_{y,n}
+=
+\sigma_{z,n}.
+\label{eq:isotropic_material_components}
 \end{equation}
-
-yields the discrete continuity equation,
-
+%
+In a homogeneous vacuum, the material matrices reduce to
+%
 \begin{equation}
-    \boxed{
-    \frac{d\widehat{\mathbf{q}}}{dt}
-    +
-    \widetilde{\mathbf{S}}\widehat{\mathbf{j}}
-    =
-    0,
-    }
+\mathbf{M}_{\varepsilon}
+=
+\varepsilon_0\mathbf{I}_{3N},
+\qquad
+\mathbf{M}_{\mu}
+=
+\mu_0\mathbf{I}_{3N},
+\qquad
+\mathbf{M}_{\sigma}
+=
+\mathbf{0}_{3N}.
+\label{eq:vacuum_material_matrices}
 \end{equation}
+%
+The diagonal structure is preserved for \textbf{anisotropic materials} whose principal axes are aligned with the Cartesian coordinate system. In a uniaxial material, two of the three principal components are equal (e.g. $\varepsilon_x=\varepsilon_y\neq\varepsilon_z$), whereas in a biaxial material all three may differ ($\varepsilon_x\neq\varepsilon_y\neq\varepsilon_z$). 
 
-which directly corresponds to the continuous continuity equation,
+However, for a generally anisotropic material whose principal axes are not aligned with the computational coordinates, the off-diagonal tensor components couple field components with different orientations and corresponding FIT material matrices are no longer diagonal but contain off-diagonal blocks. This general case lies beyond the scope of the present thesis.
 
-\begin{equation}
-    \frac{\partial\rho}{\partial t}
-    +
-    \nabla\cdot\mathbf{J}
-    =
-    0.
-\end{equation}
 
-Therefore, the conservation of electric charge is exactly preserved by the FIT spatial discretization. No spurious charge can be created or destroyed by the discrete operators, as this property is guaranteed by the underlying topology of the primal--dual grid.  In absence of external source charges, the practical implication is significant: in a time-domain simulation it is sufficient to advance only the two curl equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere} in time, and the divergence constraints are guaranteed to be preserved without any additional enforcement or correction step.
+\subsection{Material regions and Embedded boundaries}
+\label{sec:embedded_boundaries}
 
-% An important algebraic identity satisfied by the curl $\mathbf{C}$ and divergence $\mathbf{S}$ pair of operators is:
-% \begin{equation}
-% \mathbf{S}\,\mathbf{C} = 0, \qquad
-% \widetilde{\mathbf{S}}\,\widetilde{\mathbf{C}} = 0,
-% \label{eq:divcurl}
-% \end{equation}
-% which is the discrete analogue of the vector identity $\mathbf{div}\,\mathbf{curl} \equiv 0$. This property holds exactly at the matrix
-% level, independently of the mesh geometry. To see why, consider a single primal cell $n$ and compute the $n$-th row of
-% $\mathbf{S}\,\mathbf{C}$ acting on $\mathbf{e}$. The primal divergence $\mathbf{S}$ sums the six face fluxes of $\mathbf{C}\,\mathbf{e}$,
-% i.e.\ the six face circulations of $\mathbf{E}$. Each primal edge of cell $n$ is shared by exactly two faces of that same cell, and the two
-% faces induce opposite circulation orientations on their shared edge, as illustrated in Fig.~\ref{fig:yee_divergence}. Taking the
-% $z$-direction as an example, the contribution of edge $E_{z,n}$ enters the $x$-face circulation with a $+1$ and the $y$-face circulation
-% with a $-1$:
-% \begin{equation}
-% (\mathbf{S}\,\mathbf{C}\,\mathbf{e})_n = \sum_{\text{faces of } n}
-% \underbrace{(\mathbf{C}\,\mathbf{e})_{\text{face}}}_{\text{circulation}}
-% = \sum_{\text{edges of } n}
-% \underbrace{(+1 - 1)}_{\text{opposite orientations}} E_{\text{edge}}
-% = 0.
-% \end{equation}
-% Since this cancellation occurs for every edge of every primal cell, the full matrix product vanishes identically:
-% \begin{equation}
-% \mathbf{S}\,\mathbf{C} = \mathbf{0}.
-% \end{equation}
-% The same argument applied to the dual grid gives $\widetilde{\mathbf{S}}\,\widetilde{\mathbf{C}} = \mathbf{0}$.
+Once the electromagnetic properties of each material have been defined, they must be distributed throughout the computational domain. This requires determining which material occupies each grid cell and, more importantly, how to treat cells intersected by an interface between two materials.
 
-% These identities have a direct physical consequence for both Gauss laws. Consider first the magnetic Gauss law~\eqref{eq:MGE:gauss_mag}.
-% Taking the time derivative and substituting the Faraday MGE~\eqref{eq:MGE:faraday}:
-% \begin{equation}
-% \frac{\partial}{\partial t}\left(\mathbf{S}\,\mathbf{D}_A\,\mathbf{b}\right)
-% = \mathbf{S}\,\mathbf{D}_A\,\frac{\partial \mathbf{b}}{\partial t} = -\mathbf{S}\,\mathbf{C}\,\mathbf{D}_s\,\mathbf{e} = \mathbf{0}.
-% \end{equation}
-% For the electric Gauss law~\eqref{eq:MGE:gauss_el}, taking the time derivative and substituting the Amp\`ere MGE~\eqref{eq:MGE:ampere}:
-% \begin{equation}
-% \frac{\partial}{\partial t}\left(\widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\mathbf{d}\right)
-% = \widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\frac{\partial \mathbf{d}}{\partial t} = \widetilde{\mathbf{S}}\left(
-% \widetilde{\mathbf{C}}\,\widetilde{\mathbf{D}}_s\,\mathbf{h}
-% - \widetilde{\mathbf{D}}_A\,\mathbf{j}
-% \right)
-% = -\widetilde{\mathbf{S}}\,\widetilde{\mathbf{D}}_A\,\mathbf{j},
-% \end{equation}
-% where the last step uses $\widetilde{\mathbf{S}}\,\widetilde{\mathbf{C}} = \mathbf{0}$. This is precisely the discrete charge continuity
-% equation: provided that the source current $\mathbf{j}$ satisfies charge conservation, the electric Gauss law is also preserved throughout
-% the time evolution if it holds at $t = 0$.
+An \gls{embedded boundary} is a geometrical surface that delimits material regions independently of the underlying Cartesian grid. As illustrated in Fig.~\ref{fig:embedded_boundaries}, the boundary may intersect the grid at arbitrary positions and orientations. Cells located entirely on one side are assigned the properties of material~1, $\{\varepsilon_1,\mu_1,\sigma_1\}$, whereas cells located entirely on the other side are assigned those of material~2, $\{\varepsilon_2,\mu_2,\sigma_2\}$.
 
-% Both Gauss laws~\eqref{eq:MGE:gauss_mag} and~\eqref{eq:MGE:gauss_el} are therefore \emph{redundant} with respect to the two curl
-% equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere}, in the sense that they are automatically satisfied for all $t > 0$ provided that
-% the initial conditions are divergence-free and the source is charge-conserving. This is a direct consequence of the Yee staggering
-% introduced in Sec.~\ref{sec:mge_yee}, which ensures that the discrete curl and divergence operators are each other's adjoint by
-% construction. In the \gls{fit} framework, this geometric property is elevated to an exact algebraic identity at the matrix level,
-% independently of the mesh geometry and material distribution. The practical implication is significant: in a time-domain simulation it is
-% sufficient to advance only the two curl equations~\eqref{eq:MGE:faraday} and~\eqref{eq:MGE:ampere} in time, and the divergence constraints
-% are guaranteed to be preserved without any additional enforcement or correction step.
-\section{Electromagnetic material properties and embedded boundaries}
-% Define the material tensors (units, matricial form as rank-2 tensors and allocation in the Yee grid.
-% Define embedded boundaries as a way to delimit material regions. Define Partially filled cells and methods to perform material averaging (short definition of Staircasing, Subpixel smoothing, Enlarged cell technique.
-
-\begin{figure}[h]
+\begin{figure}[htb]
 \centering
-\includegraphics[width=1\linewidth]{figures_ch3/fig_embedded_boundaries.pdf}
-\caption{Enter Caption}
-\label{fig:placeholder}
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_embedded_boundaries.pdf}
+\caption{Representation of an embedded boundary separating two material
+regions on a Cartesian grid. Cells contained entirely within either region are assigned the corresponding material properties $\{\varepsilon_1,\mu_1,\sigma_1\}$ or $\{\varepsilon_2,\mu_2,\sigma_2\}$. Cells intersected by the boundary are partially filled and must be represented by effective properties $\{\varepsilon^{*},\mu^{*},\sigma^{*}\}$ determined by the selected interface-treatment method.}
+\label{fig:embedded_boundaries}
 \end{figure}
 
+The material triplet $\{\varepsilon,\mu,\sigma\}$ is initially assigned to each primal-cell volume and then mapped onto the field degrees of freedom according to their constitutive relation. 
 
+\textbf{Permittivity} $\varepsilon$ and \textbf{conductivity} $\sigma$ relate the electric-field components $\mathbf{e}$ on primal edges to, respectively, the electric flux-density components $\mathbf{d}$ and current-density components $\mathbf{j}_{\sigma}$ on dual faces. This primal-to-dual mapping is often reflected by using the tilde in $\widetilde{\mathbf{D}}_{\varepsilon}$ and $\widetilde{\mathbf{D}}_{\sigma}$ for isotropic materials~\cite{weilandWakeFieldsImpedances1992}.
+
+Similarly, \textbf{permeability} $\mu$ relates the magnetic-field components $\mathbf{h}$ on dual edges to the magnetic flux-density components $\mathbf{b}$ on primal faces. In the convention adopted in this thesis, these material matrices contain only the physical properties in SI units, while geometrical lengths and areas are represented separately by the metric matrices
+$\mathbf{D}_{s}$, $\mathbf{D}_{A}$, $\widetilde{\mathbf{D}}_{s}$, and $\widetilde{\mathbf{D}}_{A}$ introduced in Section~\ref{sec:mge_integral}.
+
+Because the embedded boundary does not generally coincide with the Cartesian grid lines, some cells contain portions of more than one material. These are referred to as \glspl{partially_filled_cell} or cut cells. However, the discrete formulation ultimately requires one material value for each field degree of freedom. The properties inside these cells must therefore be represented by suitable effective values $\{\varepsilon^{*},\mu^{*},\sigma^{*}\}$, whose definition depends on the selected interface-treatment method. The main approaches used to treat cut cells are described below.
+
+\subsubsection{Staircase approximation}
+
+The simplest treatment is the \gls{staircase approximation}, in which every cut cell is assigned entirely to one of the adjacent materials, commonly according to the material occupying its centre. The continuous interface is therefore replaced by a sequence of grid-aligned steps. This method preserves the standard Cartesian update equations and is straightforward to implement. However, curved and oblique boundaries may require a very fine grid to reduce the resulting geometrical error.
+
+\subsubsection{Subpixel smoothing}
+
+A more accurate alternative is \gls{subpixel smoothing}, which retains information about the material distribution within each cut cell when calculating its effective properties. Let $f_{m,n}=V_{m,n}/V_n$ denote the fraction of cell $V_n$ occupied by material $m$, such that $\sum_{m=1}^{N_{\mathrm{mat}}}f_{m,n}=1$.
+
+A simple arithmetic average would assign a material property $\xi\in\{\varepsilon,\mu,\sigma\}$ the effective value $\xi_n^{*}=\sum_{m=1}^{N_{\mathrm{mat}}}f_{m,n}\xi_m$. Although this provides a smoother representation than a binary material assignment, it does not account for the different continuity conditions satisfied by the normal and tangential field components at an interface. % This is the current implementation of subpixel smoothing in Wakis,
+
+A more accurate formulation therefore applies different averages in these directions. For example, the subpixel-smoothing method implemented in Meep defines the effective permittivity tensor as
+%
+\begin{equation}
+\left(\boldsymbol{\varepsilon}^{*}\right)^{-1}
+=
+\mathbf{P}
+\left\langle\varepsilon^{-1}\right\rangle
++
+\left(\mathbf{I}-\mathbf{P}\right)
+\left\langle\varepsilon\right\rangle^{-1},
+\label{eq:subpixel_effective_permittivity}
+\end{equation}
+%
+where $\mathbf{P}=\mathbf{n}\mathbf{n}^{\mathsf{T}}$ projects onto the local interface-normal direction $\mathbf{n}$, while $\langle\varepsilon\rangle=\sum_m f_{m,n}\varepsilon_m$ and $\langle\varepsilon^{-1}\rangle=\sum_m f_{m,n}\varepsilon_m^{-1}$ denote averages over the cut cell. Consequently, the effective permittivity is the harmonic mean in the normal direction and the arithmetic mean in the tangential directions~\cite{farjadpourImprovingAccuracySubpixel2006, oskooiAccurateFinitedifferenceTimedomain2009}.
+
+The resulting property is generally anisotropic, even when the materials on both sides of the interface are isotropic. In this way, information about the material distribution and the local orientation of the interface can be included without changing the topology of the Cartesian grid.
+
+\subsubsection{Conformal methods}
+
+More elaborate conformal methods include the portions of edges, faces, or volumes intersected by the physical boundary directly in the local discretization. One example is the \textbf{enlarged-cell technique} (\gls{ect}), in which problematic small cut cells are combined with neighbouring cells to avoid an excessively restrictive time-step condition~\cite{xiao3DEnlargedCell2008}.
+
+Conformal methods can describe the interface more accurately than staircasing. However, they require changes to the field-update equations near the boundary. They must also store geometrical quantities for each cut cell, such as the fractions of its edges, faces, and volume lying on either side of the interface. This increases memory use, while very small edge, face, or volume fractions may lead to singular or poorly conditioned local update equations\cite{zagorodnovConformalFDTDmethodsAvoid2007}.\footnote{CST Studio Suite applies a proprietary conformal FIT extension known as the \emph{Perfect Boundary Approximation} (PBA) to its hexahedral solvers~\cite{Krietenstein:745457}. PBA retains a Cartesian mesh while improving the representation of curved material and conducting boundaries. However, the details of its current implementation and material-averaging rules are not publicly documented.}
+
+The available treatments provide different compromises between simplicity, geometrical accuracy, memory use, and numerical stability. Staircasing uses a binary material assignment, subpixel smoothing represents the interface through effective material properties, and conformal techniques also modify the local geometrical discretization.
+
+
+
+% ----------------------------------------------
 \section{Simulation domain boundary conditions}
-% Define the different boundary conditions available in Wakis (PEC, PMC, Periodic, Absorbing Boundary conditions and in particular PML, use 1 subsection per BC). In each section describe how the different boundary conditions in Wakis affect each of the operators: PEC and PMC applied to the CURL, periodic through the Ds and Da diagonal matrices, Definition of PML.
+\label{sec:boundary_conditions}
 
+Maxwell's equations describe the evolution of the electromagnetic fields within the computational domain. However, they do not by themselves determine a unique solution when the domain is restricted to a finite volume $\Omega$. Additional constraints must specify how the fields behave at its outer boundary $\partial\Omega$ in every direction, as shown Fig.~\ref{fig:BCs}. These constraints are referred to as domain \glspl{boundary condition}\footnote{For a general partial differential equation, a boundary condition may prescribe the value of the unknown at the boundary, known as a \emph{Dirichlet boundary condition}, or its derivative in the direction normal to the boundary, known as a
+\emph{Neumann boundary condition}. A \emph{Robin boundary condition} prescribes
+a linear combination of the value and its normal derivative.}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures_ch3/fig_BC_cropped.pdf}
+    \caption{Schematic showing the placement of the $x,\ y,\ z$ boundary conditions at the lower and higher end of the simulation domain box outer boundary $\partial\Omega$. The simulation domain box contains a generic accelerator cavity.}
+    \label{fig:BCs}
+\end{figure}
+
+Electromagnetic boundary conditions require a vector formulation of these concepts because the normal and tangential components of the electric and magnetic fields obey different constraints. Consider an interface between two media, with unit normal vector $\mathbf{n}$ pointing from medium~1 to medium~2. Applying the integral form of Maxwell's equations to infinitesimal loops and volumes enclosing the interface gives
+%
+\begin{equation}
+\begin{aligned}
+\mathbf{n}\times(\mathbf{E}_2-\mathbf{E}_1)&=\mathbf{0},
+&\qquad
+\mathbf{n}\times(\mathbf{H}_2-\mathbf{H}_1)&=\mathbf{J}_{\mathrm{s}},\\
+\mathbf{n}\cdot(\mathbf{D}_2-\mathbf{D}_1)&=\rho_{\mathrm{s}},
+&\qquad
+\mathbf{n}\cdot(\mathbf{B}_2-\mathbf{B}_1)&=0,
+\end{aligned}
+\label{eq:electromagnetic_interface_conditions}
+\end{equation}
+%
+where $\rho_{\mathrm{s}}$ and $\mathbf{J}_{\mathrm{s}}$ are the surface charge and surface current densities, respectively. In the absence of surface sources, the tangential components of $\mathbf{E}$ and $\mathbf{H}$ and the normal components of $\mathbf{D}$ and $\mathbf{B}$ are therefore continuous across the interface. Specific domain boundary conditions are obtained by introducing additional assumptions about the region outside the computational domain.
+
+Wakis provides four main boundary treatments: \gls{pec}, \gls{pmc}, periodic, and absorbing boundary conditions. Their physical meaning and discrete implementation are introduced in the following subsections.
+
+\subsection{Perfect electric conductor}
+\label{sec:bc_pec}
+
+A \gls{pec} represents the ideal limit of a conductor with infinite electrical conductivity, $\sigma\rightarrow\infty$. Any finite electric field inside such a material would produce an infinite conduction-current density. The electric field must therefore vanish in its interior. Applying Eq.~\eqref{eq:electromagnetic_interface_conditions} at its surface gives
+%
+\begin{equation}
+\mathbf{n}\times\mathbf{E}=\mathbf{0},
+\qquad
+\mathbf{n}\cdot\mathbf{B}=0.
+\label{eq:pec_boundary_conditions}
+\end{equation}
+%
+The first condition states that the electric field has no tangential component at the conductor surface. The electric field may nevertheless have a normal component immediately outside the conductor, supported by a surface charge density. Similarly, the tangential magnetic field may remain non-zero because it is supported by a surface current. An electromagnetic wave incident on a PEC boundary is therefore completely reflected.
+
+Prescribing the tangential electric field to be zero is the electromagnetic counterpart of a homogeneous Dirichlet condition. In \gls{fit}, the electric-field components $\mathbf{e}$ are associated with primal edges. A PEC boundary can therefore be imposed by setting to zero the degrees of freedom associated with the primal edges tangential to the boundary. In the discrete curl equation, these degrees of freedom correspond to columns of the topology matrix $\mathbf{C}$. The PEC condition can consequently be incorporated directly into the operator by setting the corresponding columns to zero.
+
+A PEC boundary is commonly used to represent the walls of an ideal conducting structure. It can also act as an electric symmetry plane when the geometry, materials, fields, and excitation have the appropriate symmetry.
+
+\subsection{Perfect magnetic conductor}
+\label{sec:bc_pmc}
+
+A \gls{pmc} is the electromagnetic dual of a PEC. It represents an idealized boundary at which the tangential magnetic field and the normal electric flux density vanish:
+%
+\begin{equation}
+\mathbf{n}\times\mathbf{H}=\mathbf{0},
+\qquad
+\mathbf{n}\cdot\mathbf{D}=0.
+\label{eq:pmc_boundary_conditions}
+\end{equation}
+%
+Unlike a PEC, a PMC does not correspond to an ordinary physical material. Nevertheless, it provides a useful mathematical boundary condition, particularly when exploiting symmetries in the simulated problem. 
+
+When the geometry and excitation are symmetric with respect to a coordinate plane---$xy$, $xz$, or $yz$---a PMC boundary may be placed on that plane so that only part of the complete domain needs to be simulated. This reduces both memory use and computational cost. The same reduction can be obtained using a PEC symmetry plane when the fields have the opposite parity. The selected boundary condition must therefore be consistent not only with the geometrical symmetry, but also with the symmetry of the fields generated by the excitation.
+%
+\begin{figure}[htb]
+\centering
+\includegraphics[width=1.0\linewidth]{figures_ch3/fig_pecpmc_boundaries.pdf}
+\caption{Electric and magnetic fields' normal and tangential properties at the boundary, leading to symmetries across PEC and PMC interfaces.}
+\label{fig:pec_pmc_boundaries}
+\end{figure}
+
+Figure~\ref{fig:pec_pmc_boundaries} compares the field symmetries produced by PEC and PMC interfaces. At the PEC interface, the electric-field lines meet the boundary normally, while the magnetic-field lines remain tangential to it. The opposite behaviour occurs at the PMC interface: the electric field is tangential to the boundary, while the magnetic field is normal to it.
+
+In \gls{fit}, the magnetic-field components $\mathbf{h}$ are associated with dual edges. Imposing zero tangential magnetic-field components therefore removes the associated columns of the dual curl operator $\widetilde{\mathbf{C}}$. Since $\widetilde{\mathbf{C}}=\mathbf{C}^{\mathsf{T}}$, this is equivalent to setting the corresponding rows of $\mathbf{C}$ to zero. The PMC implementation is thus the row-wise counterpart of the column-wise modification used for PEC boundaries.
+
+
+\subsection{Periodic boundary conditions}
+\label{sec:bc_periodic}
+
+Periodic boundary conditions are used when the simulated structure repeats along one or more spatial directions. Instead of terminating the electromagnetic problem at two opposite faces, the fields leaving through one face are reintroduced through the other. For a simulation domain periodically repeated every $\mathbf{L}$, a strictly periodic field $\mathbf{F}$ satisfies
+%
+\begin{equation}
+\mathbf{F}(\mathbf{r}+\mathbf{L},t)
+=
+\mathbf{F}(\mathbf{r},t),
+\label{eq:periodic_boundary_condition}
+\end{equation}
+%
+where $\mathbf{F}$ represents any electric or magnetic field component. Consequently, the two periodic faces behave as adjacent parts of an infinitely repeated domain. This strictly periodic condition in \ref{eq:periodic_boundary_condition} is a particular case of the more general Floquet-periodic condition.\footnote{A Floquet-periodic boundary condition, also known as a phase-shifted or Bloch-periodic condition, relates the complex field amplitudes on opposite faces through $\widehat{\mathbf{F}}(\mathbf{r}+\mathbf{L}) =\widehat{\mathbf{F}}(\mathbf{r})
+\exp(-\mathrm{i}\mathbf{k}\cdot\mathbf{L})$, where $\mathbf{k}$ is the imposed
+wave vector. The strictly periodic condition is recovered when $\mathbf{k}\cdot\mathbf{L}=2\pi m$, with $m\in\mathbb{Z}$. This condition allows a single unit cell to represent a wave propagating through an infinite periodic structure.}
+
+In the discrete formulation, the degrees of freedom on opposite boundary faces must be connected so that the field-update stencil wraps around the domain. Special care is required at the high end of the dual grid. Under the standard dual-grid truncation introduced in Eq.~\eqref{eq:dual_grid_truncation}, the last dual lengths and areas in each coordinate direction are set to zero because they lie outside the finite simulation domain. This truncation is not valid in a periodic direction: these dual entities are not terminated at the boundary, but continue through the opposite face of the repeated domain.
+
+The missing dual entities are therefore retained in a \gls{ghost_cell} beyond the high-end boundary. For a uniform periodic grid, their lengths and areas are identical to those of the corresponding primal-grid entities. Consequently, the primal and dual metric matrices satisfy
+%
+\begin{equation}
+\widetilde{\mathbf{D}}_{s}=\mathbf{D}_{s},
+\qquad
+\widetilde{\mathbf{D}}_{A}=\mathbf{D}_{A}.
+\label{eq:periodic_metric_matrices}
+\end{equation}
+%
+This equality allows the same discrete field-update equations to be applied at the periodic interface as in the interior of the domain. The degrees of freedom at the high-end boundary connect with the corresponding degrees of freedom at the low-end boundary when the discrete operators are constructed. Periodicity is then incorporated into the spatial discretization once, during initialization, rather than enforced by copying or overwriting boundary field values at every time step.
+
+\subsection{Absorbing boundary conditions}
+\label{sec:bc_absorbing}
+
+The boundary conditions introduced so far either terminate the computational domain with a reflecting surface or connect it to a periodically repeated domain. However, many electromagnetic problems instead represent an open region, where waves leaving the volume of interest should continue propagating towards infinity without returning. Since only a finite volume can be discretized, an open-boundary treatment must be introduced to absorb outgoing waves and minimize artificial reflections back into the computational domain.
+
+This requirement is particularly important in wakefield simulations. The beam-coupling impedance characterizes the electromagnetic response of an accelerator component to the passage of a charged bunch. Because the bunch has a broadband frequency spectrum, it can excite different resonant modes in the (typically cavity-like) geometrical variations of the component. Since most accelerator components are connected to beam pipes, the propagating behavior of these fields can be understood using RF waveguide theory \cite{jensen_rf_2014}. Each beam pipe supports a set of \gls{waveguide modes} with different transverse field patterns and cutoff frequencies, determined by its cross-section. Below each mode's \gls{cutoff_frequency}, the corresponding fields are evanescent and decay rapidly with distance along the beam pipe. These evanescent fields can confine resonant modes close to the accelerator component. Above cutoff, however, the modes become propagating and can carry electromagnetic energy
+away from the structure. In a truncated computational domain, these traveling waves should leave through the longitudinal boundaries without returning. If they are reflected, they may produce artificial resonances or interfere with the physical modes of the structure, changing their apparent amplitude, frequency, or decay time.
+
+An \gls{abc} attempts to suppress these artificial reflections. Despite their long history, absorbing boundaries remain an active subject of numerical research because no finite treatment is optimal for every combination of frequency, incidence angle, material, geometry, and numerical discretization. Particularly difficult cases include grazing waves, low-frequency and evanescent fields, inhomogeneous or periodic media, backward-wave modes, and sources that cross the boundary itself.
+
+Absorbing boundaries can be divided into three broad families. Analytical conditions approximate the outgoing-wave relation directly at the outer boundary. \Glspl{pml} surround the physical domain with an anisotropic absorbing medium that is perfectly matched in the continuous formulation, as shown in Fig.~\ref{fig:BC-abc}. Adiabatic absorbers require as well this extra medium, but introduce a gradually increasing material loss without requiring perfect matching. During the development of this thesis, methods from all three families were explored. Accordingly, Wakis provides an analytical boundary based on first-order extrapolation (\texttt{FOEXTRAP}), a \gls{cpml}, and isotropic adiabatic absorbing layers.
+
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.9\linewidth]{figures_ch3/fig_pml_cropped.pdf}
+    \caption{Schematic showing the general absorbing boundary condition placement at the end of the simulation box. Analytic \gls{abc}, like other \gls{bc}s, are applied at the simulation domain boundary $\partial \Omega$ cells, while \gls{pml} and adiabatic absorbers surround the simulation domain with extra blocks of 2D layers of anisotropic material properties.}
+    \label{fig:BC-abc}
+\end{figure}
+
+\subsubsection{Analytical absorbing boundary conditions}
+\label{sec:bc_analytical}
+
+Analytical \glspl{abc} impose a mathematical condition at the outer boundary that approximates how an outgoing wave would continue propagating into open space, with the intention of suppressing the incoming-wave solution while retaining the outgoing one. 
+
+Classical approaches include the Sommerfeld radiation condition, the hierarchy of Engquist--Majda conditions, and their application to time-domain electromagnetic problems by Mur
+\cite{1977MaCom..31..629E, 1981ITElC..23..377M}. First-order conditions are
+inexpensive and generally work best near normal incidence, whereas higher-order formulations improve absorption over a wider range of angles at the cost of larger spatial and temporal stencils.
+
+The first-order extrapolation condition \texttt{FOEXTRAP}--provided by AMReX and used in EMcLAW\cite{barbasespaDevelopmentAMREMMaxwells2015, morenofernandezEMcLAWDevelopmentApplications2021}, and also implemented in Wakis--is one of the simplest approaches. It extrapolates each boundary-adjacent interior value into the corresponding neighboring \gls{ghost_cell}, producing a constant continuation of the field across the boundary. This is equivalent to imposing a zero normal derivative at the boundary, so the field is assumed not to vary in the direction perpendicular to it. It only works for limited range of frequencies depending on the spatial resolution and timestep advance.
+
+\subsubsection{Perfectly matched layers}
+\label{sec:bc_pml}
+
+The \gls{pml}, originally introduced by Bérenger \cite{berenger_perfectly_1994}, surrounds the computational domain with an artificial medium designed to absorb outgoing electromagnetic waves without reflecting them at its interface. Unlike an analytical \gls{abc}, and as illustrated in Fig.~ \ref{fig:BC-abc } it is not a condition applied only at the outer boundary---and therefore cannot strictly be considered a numerical boundary condition---but an additional material region through which the fields decay before reaching the \gls{pec}-terminated end of the computational domain.
+
+The physical principle behind the \gls{pml} can be understood from the reflection of a plane wave at the interface between two media. At normal incidence, the field reflection coefficient $\Gamma$ is
+%
+\begin{equation}
+\Gamma
+=
+\frac{\eta_2-\eta_1}
+{\eta_2+\eta_1},
+\label{eq:pml_reflection_coefficient}
+\end{equation}
+%
+where $\eta_1$ and $\eta_2$ are the \glspl{wave_impedance} of the two media\footnote{The wave impedance is also commonly denoted by $Z$. In this thesis, however, the symbol $Z$ is reserved for the beam-coupling impedance. In vacuum, the wave impedance is the fundamental constant $\eta_0=\sqrt{\mu_0/\varepsilon_0}\approx 376.73~\Omega$.}. The wave impedance relates the amplitudes of the electric $\mathbf{E}$ and magnetic field $\mathbf{H}$ at the interface. Assuming an $e^{\mathrm{j}\omega t}$ convention, the wave impedance of a lossy medium with electric conductivity $\sigma_{\mathrm{el}}$
+%
+\begin{equation}
+\eta
+=
+\frac{E}{H}
+=
+\sqrt{
+\frac{\mathrm{j}\omega\mu}
+{\mathrm{j}\omega\varepsilon+\sigma_{\mathrm{el}}} }.
+\label{eq:pml_lossy_wave_impedance}
+\end{equation}
+%
+It follows from Eq.~\eqref{eq:pml_reflection_coefficient} that the interface is reflectionless when the impedances on both sides are equal. This is the key concept behind the PML: attenuation is introduced while preserving the impedance of the neighbouring physical domain. For an isotropic medium, this requires the introduction of the non-physical magnetic conductivity $\sigma_{\mathrm{mag}}$, chosen together with the electric conductivity such that
+%
+\begin{equation}
+\frac{\sigma_{\mathrm{el}}}{\varepsilon}
+=
+\frac{\sigma_{\mathrm{mag}}}{\mu}.
+\label{eq:pml_conductivity_matching}
+\end{equation}
+%
+Matching the impedance at normal incidence is not sufficient, however, to absorb waves at every angle and for both polarizations. The \gls{pml} must therefore be described by anisotropic and dispersive permittivity and permeability tensors. The complete derivation of these properties from Snell's law and the Fresnel equations is provided in the Appendix B, while only the main result is summarized here.
+
+In most accelerator components, the beam pipe is oriented along the $z$-direction. For a \gls{pml} normal to this direction, the complex permittivity and permeability tensors can be written as $\boldsymbol{\varepsilon}_{\mathrm{PML}}=\varepsilon\mathbf{S}_z$ and $\boldsymbol{\mu}_{\mathrm{PML}}=
+\mu\mathbf{S}_z$, with the stretching operator $S_z$ defined as:
+
+\begin{equation}
+\begin{aligned}
+\mathbf{S}_z
+&=
+\begin{bmatrix}
+s_z & 0 & 0\\ 0 & s_z & 0\\ 0 & 0 & s_z^{-1}
+\end{bmatrix},
+& s_z(\omega) &= 1+
+\frac{\sigma_z}
+{\mathrm{j}\omega\varepsilon_0}.
+\end{aligned}
+\label{eq:pml_uniaxial_tensor}
+\end{equation}
+
+Since the permittivity and permeability are transformed by the same operator, their ratio, and therefore the wave impedance, remains matched to that of the neighbouring domain. The reciprocal scaling of the normal and tangential components provides the additional degrees of freedom required to preserve this matching for both polarizations and at any angle of incidence. This anisotropic material interpretation is known as the \textbf{uniaxial-material} \gls{upml}, introduced in \cite{sacksPerfectlyMatchedAnisotropic1995}.
+
+A mathematically equivalent\footnote{The uniaxial-material and stretched-coordinate formulations are, in the end, two interpretations of the same matching principle: the former modifies the constitutive relations, whereas the latter modifies the spatial derivatives in Maxwell's equations.} interpretation is obtained through \textbf{complex coordinate stretching} \cite{846b0097a9604e3493779e861b81255c}. In this formulation, each spatial derivative is transformed according to
+%
+\begin{equation}
+\frac{\partial}{\partial u}
+\longrightarrow
+\frac{1}{s_u(\omega)}
+\frac{\partial}{\partial u},
+\qquad
+s_u(\omega) = 1+
+\frac{\sigma_u}
+{\mathrm{j}\omega\varepsilon_0},
+\qquad
+u\in\{x,y,z\}.
+\label{eq:pml_coordinate_stretching}
+\end{equation}
+%
+Here, $\sigma_u$ is an artificial conductivity that vanishes in the physical domain and becomes positive inside the \gls{pml}. The imaginary part of the resulting complex coordinate causes propagating waves to decay exponentially without introducing an impedance discontinuity.
+
+The term \textit{perfectly matched} applies to the interface in the continuous formulation, where no spatial discretization is present. In a numerical model, the \gls{pml} has a finite thickness and is terminated by an outer \gls{pec} boundary. Moreover, an abrupt variation of its parameters cannot be represented perfectly by the discrete grid. In practice, \textbf{the PML conductivity} needs to be ramped gradually, commonly using a polynomial profile,
+%
+\begin{equation}
+\sigma_u(u)
+=
+\sigma_{u,\max}
+\left(
+\frac{u-u_0}{d_{\mathrm{PML}}}
+\right)^m,
+\qquad
+u_0\leq u\leq u_0+d_{\mathrm{PML}},
+\label{eq:pml_conductivity_profile}
+\end{equation}
+%
+where $u_0$ marks the entrance of the layer, $d_{\mathrm{PML}}$ is its thickness, and $m$ controls the grading. Small numerical reflections nevertheless remain because of the spatial discretization, finite layer thickness, grading profile, and outer termination. The \gls{pml} should also be placed sufficiently far from the accelerator structure to avoid overlapping with the evanescent fields of physical resonant modes in the accelerator structure. Otherwise, these fields may be attenuated by the \gls{pml}, introducing artificial losses into the simulated modes.
+
+Since Bérenger's original formulation, several \textbf{advanced PML formulations} have been developed. One example is the hybrid Sommerfeld--PML proposed by Vay
+\cite{VAY2000511}, combining an analyticial one-way Sommerfeld radiation condition into the formulation. A separate difficulty appears in \gls{pic} simulations when charged particles enter the absorbing region. In this case, damping the electromagnetic fields alone does not ensure a consistent treatment of the current deposited by the particles and may produce spurious radiation. A more recent extension, implemented in \gls{warpx}, damps the particle current deposited inside the \gls{pml} using an analytically derived coefficient
+\cite{lehePhysRevE.106.045306}.
+
+The original conductivity-based stretching may also perform poorly for low-frequency and evanescent fields. These components are particularly relevant when the boundary is placed close to an accelerator structure or waveguide discontinuity. The \textbf{complex-frequency-shifted} PML formulation improves their attenuation by generalizing the stretching function to
+%
+\begin{equation}
+s_u(\omega) =
+\kappa_u
++
+\frac{\sigma_u}
+{\alpha_u+\mathrm{j}\omega\varepsilon_0},
+\qquad
+\kappa_u\geq 1,
+\quad
+\alpha_u\geq 0.
+\label{eq:cpml_stretching_function}
+\end{equation}
+%
+The parameter $\sigma_u$ controls the attenuation, $\kappa_u$ provides an additional coordinate scaling, and $\alpha_u$ shifts the pole away from zero frequency, improving the absorption of low-frequency and evanescent components. Because $s_u$ depends on frequency, multiplication by $1/s_u(\omega)$ in the frequency domain becomes a convolution in time. This gives the name to the \textbf{convolutional PML} (\gls{cpml}) method \cite{RodenCPML}.
+
+In this approach, the convolution is evaluated recursively using auxiliary memory variables, without storing the complete time history of the fields. The \gls{cpml} represents the state-of-the-art of \gls{pml}-based boundary conditions for time-domain solvers, and is available in most commercial codes such as Ansys Maxwell and \gls{cst} Wakefield solver, although their documentation does not always specify the exact internal formulation. The \gls{cpml} implementation in Wakis was developed by Antonia Huber during her master's thesis under the supervision of the author. The
+corresponding recursive equations used by Wakis and their coupling to the \gls{fit} field updates are presented in the implementation chapter.
+
+
+\subsubsection{Adiabatic absorbers}
+\label{sec:bc_adiabatic_absorber}
+
+The coordinate-stretching approach underlying a \gls{pml} assumes that the material distribution can be continued analytically in the direction normal to the boundary. This assumption may fail in periodic or strongly inhomogeneous media, causing significant reflections even as the spatial resolution is increased \cite{oskooi_failure_2008}. Adiabatic absorbing layers provide an alternative for these configurations.
+
+As in a \gls{pml}, the physical domain is surrounded by a lossy layer that attenuates the outgoing wave before it reaches the final \gls{pec} termination. However, an adiabatic absorber is not perfectly matched at its entrance. Instead, the reflection is reduced by introducing a small loss at the interface and increasing it smoothly across the layer, for example through a higher-order conductivity profile,
+
+\begin{equation}
+\sigma(u)
+=
+\sigma_{\max}
+\left(
+\frac{u-u_0}{d_{\mathrm{abs}}}
+\right)^m,
+\qquad
+u_0\leq u\leq u_0+d_{\mathrm{abs}},
+\label{eq:adiabatic_conductivity_profile}
+\end{equation}
+
+where $u_0$ marks the entrance of the absorber, $d_{\mathrm{abs}}$ is its thickness, and $m$ controls the smoothness of the transition. If the conductivity varies sufficiently slowly compared with the wavelength, the wave adapts gradually to the changing medium and the reflection approaches zero in the adiabatic limit. Higher-order profiles produce a smoother transition at the entrance and can therefore reduce the reflection more rapidly as the layer thickness is increased
+\cite{oskooi_failure_2008}.
+
+Figure~\ref{fig:adiabatic_absorber} illustrates why this gradual transition is necessary. An abrupt interface with a small imaginary part of the refractive index attenuates the transmitted wave while producing only a limited reflection. Increasing the loss strengthens the attenuation, but also increases the impedance discontinuity and therefore the reflected wave. An adiabatic absorber avoids this trade-off by keeping the loss small near the interface and increasing it only after the wave has entered the layer.
+
+\begin{figure}[htb]
+\centering
+\includegraphics[width=\linewidth]
+{figures_ch3/fig_adiabatic_absorption.pdf}
+\caption{Simulation of the reflection $\Gamma = \frac{(1-n_0)^2 + \kappa^2}{(1+n_0)^2 + \kappa^2}$ at an abrupt interface for increasing levels of material absorption. Here $n = n_0+j\kappa = \sqrt{\varepsilon_r+j\omega\sigma/\varepsilon_0}$ is the complex refractive index, whose imaginary part is the wave attenuation $\kappa$}
+\label{fig:adiabatic_absorber}
+\end{figure}
+
+Unlike the frequency-dependent coordinate stretching used by a \gls{cpml}, an adiabatic absorber can be implemented using a nondispersive Ohmic conductivity, $\mathbf{J}_{\sigma}=\sigma\mathbf{E}$. Its contribution is therefore local in time and does not require a temporal convolution or auxiliary memory variables. This simplicity comes at the cost of a thicker absorbing layer, since its performance depends on introducing the conductivity sufficiently gradually.
+
+In accelerator components, the beam pipe often extends into the absorbing region, making this region inherently inhomogeneous. Under these conditions, the assumptions underlying the \gls{cpml} may no longer hold, and an adiabatic absorber can provide more robust absorption. For this reason, adiabatic absorbing layers are retained as one of the \gls{abc} options available in Wakis. Their implementation is described in the following chapter.
+
+
+% -----------------------------------------------
 \section{Time advancing and beam source}
-% Discuss the available time integrators for FDTD/FIT and motivate the choice of the leap-frog.
+\label{sec:time_advancing}
 
+The spatial discretization introduced in the previous sections transforms Maxwell's curl equations into a system of first-order ordinary differential equations for the electric- and magnetic-field \glspl{dof}. In the adopted
+\gls{fit} formulation, the material matrices contain only material values in SI
+units, while the geometrical quantities remain in separate diagonal metric matrices. The semi-discrete equations therefore read
+
+\begin{equation}
+\begin{aligned}
+\frac{\partial\mathbf{h}}{\partial t}
+&= -\mathbf{M}_{\mu}^{-1}
+\mathbf{D}_A^{-1}
+\mathbf{C}\mathbf{D}_s\mathbf{e},
+\\
+\frac{\partial\mathbf{e}}{\partial t}
+&=
+\mathbf{M}_{\varepsilon}^{-1}
+\left(
+\widetilde{\mathbf{D}}_A^{-1}
+\widetilde{\mathbf{C}}\widetilde{\mathbf{D}}_s\mathbf{h}
+-\mathbf{M}_{\sigma}\mathbf{e} -\mathbf{j}_{\mathrm{beam}}
+\right).
+\end{aligned}
+\label{eq:fit_semidiscrete_time_system}
+\end{equation}
+
+The FIT topology and metric operators are not restricted to time-domain simulations: the same spatial discretization can also be used in frequency-domain or eigenmode solvers. A time-domain solver requires a second approximation to evaluate the time derivatives and advance the electromagnetic fields from one instant to the next.
+
+\subsection{Time integrators}
+\label{sec:time_integrators}
+
+The numerical integration of differential equations has its origins in the finite-difference methods developed by Euler in the eighteenth century. The simplest example is the forward Euler method,
+%
+\begin{equation}
+\left.
+\frac{\partial\mathbf{u}}{\partial t}
+\right|_{t=t^n}
+\approx
+\frac{\mathbf{u}^{n+1}-\mathbf{u}^{n}}{\Delta t},
+\end{equation}
+%
+which advances the solution using its derivative at the current instant. This method is explicit and first-order accurate.\footnote{In a time-\textbf{explicit} method, the solution at the new timestep is obtained directly from quantities already known. In a time-\textbf{implicit} method, the new solution also appears on the right-hand side, requiring a system of equations to be solved at each timestep.}
+
+Forward Euler is also the first-order member of the explicit Runge--Kutta family. Higher-order Runge--Kutta methods improve the temporal accuracy by evaluating the field equations at several intermediate stages, at the cost of additional curl operations and temporary field vectors. Implicit schemes, such as Crank--Nicolson and implicit Gauss--Legendre Runge--Kutta methods, generally offer greater stability but require the solution of a large sparse system at every timestep~\cite{DORMAND198019}.
+
+This cost is particularly important in wakefield simulations, where the response of a structure may need to be followed over millions of timesteps. Weakly damped resonances, especially in highly conductive components, can produce fields that persist long after the bunch has crossed the structure. The time integrator should therefore remain stable over long simulations while requiring as few field operations and stored vectors as possible.
+
+An efficient alternative originates from the Störmer--Verlet family of integrators, initially developed to advance the positions and velocities of Newtonian systems. These methods update two coupled variables at staggered time instants. Applying the same idea to the electric and magnetic fields leads to the \textbf{leapfrog method}, widely used in \gls{fdtd} and \gls{pic} codes because of its second-order accuracy, low computational cost, and favourable long-term energy behaviour \cite{fedeli_pushing_2022, yee_numerical_1966, weilandFiniteIntegrationMethod2003}.
+
+\subsection{The leapfrog method in FIT}
+\label{sec:fit_leapfrog}
+
+In the leapfrog scheme, the electric and magnetic fields are separated by half a timestep  $\Delta t$:
+%
+\begin{equation}
+\mathbf{e}^{\,n}(t)=\mathbf{e}\left(n\Delta t\right),
+\qquad
+\mathbf{h}^{\,n+\frac{1}{2}}(t)
+=
+\mathbf{h}\left(\left(n+\frac{1}{2}\right)\Delta t\right).
+\end{equation}
+%
+In a \textbf{lossless and source-free} domain, the FIT equations are advanced as
+
+\begin{equation}
+\boxed{
+\begin{aligned}
+\mathbf{h}^{\,n+\frac{1}{2}}
+&=
+\mathbf{h}^{\,n-\frac{1}{2}}
+-\Delta t\,
+\mathbf{M}_{\mu}^{-1}
+\mathbf{D}_A^{-1}
+\mathbf{C}\mathbf{D}_s\mathbf{e}^{\,n},
+\\[3mm]
+\mathbf{e}^{\,n+1}
+&=
+\mathbf{e}^{\,n}
++\Delta t\,
+\mathbf{M}_{\varepsilon}^{-1}
+\widetilde{\mathbf{D}}_A^{-1}
+\widetilde{\mathbf{C}}\widetilde{\mathbf{D}}_s
+\mathbf{h}^{\,n+\frac{1}{2}} .
+\end{aligned}}
+\label{eq:fit_leapfrog_lossless}
+\end{equation}
+
+Each field is updated using the most recent value of the other: the electric field advances the magnetic field by half a step, after which the updated magnetic field advances the electric field to the next full step. Consequently no global system must be solved, and each timestep $\Delta t$ requires only one application of each curl operator. It is a \textbf{symplectic method}, meaning that the temporal staggering also reproduces the continuous exchange of energy between the electric and magnetic fields without any energy drift, unlike the forward Euler integration.
+
+\subsubsection{Stability and the CFL condition}
+\label{sec:fit_cfl}
+
+Because the leapfrog method is explicit, the timestep is limited by the
+\gls{cfl} condition. This condition requires the numerical propagation of
+information to be at least as fast as its physical propagation across the grid. For a uniform Cartesian grid in vacuum, the maximum timestep is
+
+\begin{equation}
+\Delta t
+\leq
+\Delta t_{\mathrm{CFL}}
+=
+\frac{1}
+{c\sqrt{
+\dfrac{1}{\Delta x^2}
++\dfrac{1}{\Delta y^2} +\dfrac{1}{\Delta z^2}}},
+\label{eq:fit_cartesian_cfl}
+\end{equation}
+
+where: $\Delta x=\min_n l_{x,n},\ \Delta y=\min_n l_{y,n},\ \Delta z=\min_n l_{z,n},$ and $c=1/\sqrt{\mu_0\varepsilon_0}$ is the speed of light in vacuum. For a nonuniform or inhomogeneous domain, the most restrictive combination of local edge lengths and propagation velocity $v_{\mathrm{p}}=\frac{1}{\sqrt{\mu\varepsilon}}$ determines the maximum timestep. In practice, $\Delta t_{\mathrm{CFL}}$ is usually multiplied by a safety factor slightly smaller than one.
+
+The CFL condition is a stability limit rather than an accuracy criterion. Satisfying it prevents the numerical fields from growing without bound, but the spatial and temporal resolutions must still be sufficient to control numerical dispersion and resolve the shortest relevant wavelength.
+
+\subsection{Time advancing in lossy media}
+\label{sec:time_advancing_losses}
+
+In the frequency domain, conductive losses may be incorporated into a complex permittivity, as discussed in Section~\ref{sec:material_properties}. In the time domain, however, permittivity and conductivity remain separate contributions to Ampère's law:
+%
+\begin{equation}
+\nabla\times\mathbf{H}
+=
+\frac{\partial\mathbf{D}}{\partial t}
++\mathbf{J}_{\sigma} +\mathbf{J}_{\mathrm{beam}},
+\qquad
+\mathbf{J}_{\sigma}
+=
+\boldsymbol{\sigma}\mathbf{E}.
+\label{eq:ampere_conductive_current}
+\end{equation}
+%
+Conductivity therefore enters the electric-field update as an Ohmic current, rather than as an imaginary part of the time-domain permittivity. With the nomenclature adopted here, its discrete representation is simply
+%
+\begin{equation}
+\mathbf{j}_{\sigma}
+=
+\mathbf{M}_{\sigma}\mathbf{e},
+\qquad
+\mathbf{j}
+=
+\mathbf{j}_{\mathrm{beam}}
++\mathbf{j}_{\sigma},
+\label{eq:total_current_beam_conduction}
+\end{equation}
+%
+where both current-density vectors are allocated to the dual faces. Evaluating the conductive current explicitly at $t^n$, while evaluating the beam current at the centre of the electric-field update, gives the \textbf{complete leapfrog scheme} used in wakefield simulations:
+
+\begin{equation}
+\boxed{
+\begin{aligned}
+\mathbf{h}^{\,n+\frac{1}{2}}
+&=
+\mathbf{h}^{\,n-\frac{1}{2}}
+-\Delta t\,
+\mathbf{M}_{\mu}^{-1}
+\mathbf{D}_A^{-1}
+\mathbf{C}\mathbf{D}_s\mathbf{e}^{\,n},
+\\[5mm]
+\mathbf{e}^{\,n+1}
+&=
+\mathbf{e}^{\,n}
++\Delta t\,
+\mathbf{M}_{\varepsilon}^{-1}
+\bigg(
+\widetilde{\mathbf{D}}_A^{-1}
+\widetilde{\mathbf{C}}\widetilde{\mathbf{D}}_s
+\mathbf{h}^{\,n+\frac{1}{2}}
+-\mathbf{M}_{\sigma}\mathbf{e}^{\,n} -\mathbf{j}_{\mathrm{beam}}^{\,n+\frac{1}{2}}
+\bigg).
+\end{aligned}}
+\label{eq:fit_leapfrog_explicit_losses}
+\end{equation}
+
+\subsubsection{Dielectric relaxation time}
+\label{sec:dielectric_relaxation_time}
+
+Although this update remains simple and fully explicit, conductivity introduces an additional stability restriction. In an isotropic material, the dielectric relaxation time is
+\begin{equation}
+\tau_{\mathrm{d}}
+=
+\frac{\varepsilon}{\sigma},
+\label{eq:dielectric_relaxation_time}
+\end{equation}
+which characterizes the decay of free charge, and hence of the associated electric field, through Ohmic conduction. For the homogeneous decay equation
+\begin{equation}
+\frac{\partial\mathbf{E}}{\partial t}
+= -\frac{\sigma}{\varepsilon}\mathbf{E},
+\end{equation}
+the forward Euler integration is stable only if
+\begin{equation}
+\Delta t
+\leq
+2\tau_{\mathrm{d}} =
+\frac{2\varepsilon}{\sigma}.
+\label{eq:conductivity_explicit_stability}
+\end{equation}
+Highly conductive materials may therefore impose a timestep considerably smaller than the electromagnetic CFL limit. When the internal fields of a good conductor are not required, this difficulty can be avoided by representing the bulk as a
+\gls{pec} and applying an appropriate surface-impedance boundary condition.
+
+Alternatively, the stability of the volumetric conductive update can be improved using \gls{etd}. This method assumes that the curl and beam-current terms remain constant during one timestep, while integrating the Ohmic decay analytically. For scalar $\varepsilon$ and $\sigma$, the update becomes
+\begin{equation}
+\begin{aligned}
+\mathbf{e}^{\,n+1}
+={}&
+\exp\left(-\frac{\Delta t}{\tau_{\mathrm{d}}}\right)
+\mathbf{e}^{\,n}
+\\
+&+
+\frac{
+1-\exp\left(-\dfrac{\Delta t}{\tau_{\mathrm{d}}}\right)} {\sigma}
+\left(
+\widetilde{\mathbf{D}}_A^{-1}
+\widetilde{\mathbf{C}}\widetilde{\mathbf{D}}_s
+\mathbf{h}^{\,n+\frac{1}{2}}
+-\mathbf{j}_{\mathrm{beam}}^{\,n+\frac{1}{2}}
+\right)
+\end{aligned}
+\label{eq:fit_etd_conductivity}
+\end{equation}
+For diagonal material matrices, this expression can be evaluated component by component. The exponential factor reproduces the conductive decay without the explicit restriction of Eq.~\eqref{eq:conductivity_explicit_stability}, making the method better suited to highly lossy cells. It does not, however, remove the wave-propagation CFL limit \cite{585755}.
+
+\subsection{Including a moving beam source}
+\label{sec:moving_beam_source}
+
+In a wakefield simulation, the electromagnetic fields are excited by a charged particle bunch travelling through the computational domain. Considering a bunch of total charge $q$, measured in coulombs, moving in the positive $z$-direction with constant velocity $v=\beta c$. At a given longitudinal position $z$, its passage is described by the normalized temporal distribution
+%
+\begin{equation}
+\lambda_t(z,t)
+=
+\frac{1}{\sqrt{2\pi}\sigma_t}
+\exp\left[
+-\frac{
+\left(
+t-t_{\mathrm{i}}-\dfrac{z-z_{\mathrm{min}}}{\beta c}
+\right)^2
+}{ 2\sigma_t^2 }
+\right],
+\qquad
+\int_{-\infty}^{\infty}\lambda_t(z,t)\,\mathrm{d}t=1,
+\label{eq:gaussian_bunch_temporal_profile}
+\end{equation}
+%
+where $z_{\mathrm{min}}$ is the entrance of the computational domain, the injection time $t_{\mathrm{i}}$ is the time at which the bunch centre reaches this plane, and $\sigma_t=\sigma_z/(\beta c)$ is the rms bunch duration corresponding to the rms bunch length $\sigma_z$. Since $\lambda_t$ is normalized with respect to time, it has units of $\mathrm{s}^{-1}$. The associated beam current, measured in amperes, is $I(z,t)=q\lambda_t(z,t)$. For a normalized transverse distribution $f_\perp(x,y)$, satisfying $\int_{\mathbb{R}^2}f_\perp(x,y)\,\mathrm{d}x\,\mathrm{d}y=1$, the current density is
+%
+\begin{equation}
+\mathbf{J}_{\mathrm{beam}}(\mathbf{r},t)
+= q\lambda_t(z,t)f_\perp(x,y)\widehat{\mathbf{z}}.
+\label{eq:continuous_beam_current}
+\end{equation}
+%
+The transverse profile $f_\perp$ has units of $\mathrm{m}^{-2}$, so $\mathbf{J}_{\mathrm{beam}}$ is measured in $\mathrm{A/m^2}$. A pencil or line beam travelling at $(x_0,y_0)$ is obtained by taking $f_\perp(x,y)=\delta(x-x_0)\delta(y-y_0)$. Since the charge moves rigidly with velocity $\beta c\,\widehat{\mathbf{z}}$, its volumetric charge density is related to the longitudinal current density by
+%
+\begin{equation}
+\rho_{\mathrm{beam}}(\mathbf{r},t)
+=
+\frac{J_{\mathrm{beam},z}(\mathbf{r},t)}{\beta c}
+=
+\frac{q}{\beta c}
+\lambda_t(z,t)f_\perp(x,y).
+\label{eq:continuous_beam_charge}
+\end{equation}
+%
+The charge density $\rho_{\mathrm{beam}}$ is measured in $\mathrm{C/m^3}$. For constant $\beta$ and a transverse profile that does not vary along the trajectory, the prescribed charge and current densities satisfy the continuity equation $\partial\rho_{\mathrm{beam}}/\partial t +\nabla\cdot\mathbf{J}_{\mathrm{beam}}=0$.
+
+The \textbf{injection time} $t_{\mathrm{i}}$ places the bunch sufficiently far before the entrance plane at the beginning of the simulation, so that only the negligible leading tail of the Gaussian initially overlaps the domain. For an ultrarelativistic bunch, its centre is chosen to be located approximately $8.55\sigma_z$ upstream of the entrance plane, or equivalently reaches the plane $8.55\sigma_t$ after the start of the simulation
+\cite{de_la_fuente_generalized_2023}. The default adopted in this thesis for $\beta\leq1$ is:
+%
+\begin{equation}
+t_{\mathrm{i}} =
+\frac{8.55\sigma_z}{c\beta^{3/2}}
+=
+\frac{8.55\sigma_t}{\sqrt{\beta}}.
+\label{eq:beam_injection_time}
+\end{equation}
+%
+The \textbf{bunch length} $\sigma_z$ also determines the frequency range excited by the source. The Fourier spectrum of the temporal Gaussian is proportional to $\exp[-(2\pi f\sigma_t)^2/2]$ (see Sec.~\ref{sec:wake_impedance_calculation}). Although it has no sharp upper limit, an effective maximum frequency is commonly taken as
+%
+\begin{equation}
+f_{\max} =
+\frac{1}{3\sigma_t}
+=
+\frac{\beta c}{3\sigma_z}.
+\label{eq:maximum_bunch_frequency}
+\end{equation}
+%
+This frequency corresponds to the electromagnetic wavelength scale, which in vacuum is $\lambda_{\mathrm{EM},\min}= c/f_{\max}=3\sigma_z/\beta$. A shorter bunch excites a broader frequency range and requires a finer mesh to resolve the corresponding fields.\footnote{The shortest relevant electromagnetic wavelength $\lambda_{\mathrm{EM},\min}$ provides an initial scale for mesh refinement and convergence studies. A common starting criterion is approximately 20 cells per wavelength, although the required resolution depends on the numerical dispersion, geometry, material properties, and desired accuracy. If fields inside a good conductor are modelled explicitly, the mesh must also resolve the smallest relevant skin depth, having $\lambda_{\mathrm{EM},\min} \leq \delta(\omega)=\sqrt{2/(\omega\mu\sigma)}$, over the frequency range of interest.}
+
+\subsubsection{Discrete formulation considerations}
+
+In the discrete formulation, the continuous longitudinal current density is sampled on the dual faces intersected by the beam trajectory, forming the current-density vector $\mathbf{j}_{\mathrm{beam}}^{\,n+1/2}$. The half-step index arises because Ampère's law is integrated from $t^n$ to $t^{n+1}$, with the source contribution evaluated at $t^{n+1/2}=(n+1/2)\Delta t$, consistently with the temporal staggering of the leapfrog scheme.
+
+Special treatment is required when the prescribed charged beam enters or leaves a truncated computational domain. Abruptly starting or terminating the discrete current introduces a local violation of the continuity equation and leaves an unphysical charge accumulation. Moreover, a conventional absorbing boundary is designed for outgoing electromagnetic waves and does not correctly absorb the space-charge field transported with the bunch. 
+
+A Total field/Scattered field \gls{tfsf} formulation avoids this interaction by confining the prescribed
+beam and its known incident field to the total-field region, while only the scattered wakefield reaches the absorbing boundary
+\cite{balk_open_2006}. The construction of this interface and the corresponding
+corrections to the discrete field updates are presented in the implementation chapter.
+
+% As the bunch travels through the structure, the fields it excites are sampled along one or more longitudinal integration paths followed by synchronous witnesses trailing the source. The source--witness separation variable $s$ together with the integration of the sampled fields into wake potentials are introduced in the next section.
+
+% -----------------------------------------------
 \section{Wakefield integration}
-% Give a short introduction to Wakefields and Impedance, then discuss the consequence of retrieving the wake potential instead of the wake function in a
-% Describe the integration of the electric and magnetic field to compute the longitudinal wake potential. Describe the Panfsky-Wenzel theorem to achieve the transverse wake potential. Describe the deconvolution needed to retrieve the longitudinal and transverse impedance from the wake potential and the charge distribution, discussing the sign convention. Introduce the concept of dipolar and quadrupolar impedance, discussing the shift of the beam source or the integration path respectively.
+\label{sec:wakefield_integration}
+The previous sections detail the numerical methods required to solve Maxwell's equations in the time domain and obtain the evolution of the electromagnetic fields produced by an excitation source within a given configuration of material regions, boundary conditions, and initial conditions. In wakefield simulations, the excitation source represents a particle bunch passing through an accelerator component. During its passage, the bunch excites trailing electromagnetic wakefields that may resonate inside the structure, dissipate energy, and affect subsequent particles or bunches. The main quantities used to characterize these effects are the point-charge wake function $w(s)$, the bunch wake potential $W(s)$, and the impedance $Z(f)$, as described in Chapter~\ref{ch::chapter2}. The final step in a wakefield solver is to integrate the simulated electromagnetic fields to obtain these quantities.
 
+\subsection{Wake functions and wake potentials}
+\label{sec:bunch_wake_potential}
+
+As described in Chapter~\ref{ch::chapter2}, the wake function $w(\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s)$ describes the response of a structure to an ideal point charge, where $\mathbf{r}_{\mathrm{s}}=(x_{\mathrm{s}},y_{\mathrm{s}})$ and $\mathbf{r}_{\mathrm{t}}=(x_{\mathrm{t}},y_{\mathrm{t}})$ are the transverse positions of the source and witness particles, respectively. Their longitudinal separation is denoted by $s=\beta c t - z$, with $s>0$ corresponding to a witness trailing the source.
+
+In this source--witness particle model, the electromagnetic fields excited by the source exert the Lorentz force $\mathbf{F}=q_{\mathrm{t}}\left(\mathbf{E}+\mathbf{v}\times\mathbf{B}\right)$ on a witness particle of charge $q_{\mathrm{t}}$. The longitudinal component describes the energy transferred between the particles, while the transverse components produce a deflecting kick. The witness-particle trajectory is used to define a longitudinal integration path along which the fields are sampled synchronously with the source motion.
+
+Let $\mathbf{E}^{\delta}(x,y,z,t)$ and $\mathbf{B}^{\delta}(x,y,z,t)$ denote the fields excited by a point source of charge $q_{\mathrm{s}}$. The corresponding vector wake function $\boldsymbol{w}$ is
+
+\begin{equation}
+\begin{aligned}
+\boldsymbol{w}
+\left(
+\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s
+\right)
+&=
+\frac{1}{q_{\mathrm{s}}q_{\mathrm{t}}}
+\int_{z_{\min}}^{z_{\max}}
+\mathbf{F}^{\delta}
+\left(\mathrm{r}_s,
+\mathbf{r}_{\mathrm{t}},z,
+t=\frac{z+s}{\beta c}
+\right)
+\,\mathrm{d}z
+\\ \\
+&=
+\frac{1}{q_{\mathrm{s}}}
+\int_{z_{\min}}^{z_{\max}}
+\left[
+\mathbf{E}^{\delta}
++
+\beta c\,\widehat{\mathbf{z}}\times\mathbf{B}^{\delta}
+\right]_{
+\substack{
+(x,y)=\mathbf{r}_{\mathrm{t}}\\ t=\frac{z+s}{\beta c} }}
+\,\mathrm{d}z.
+\end{aligned}
+\label{eq:point_charge_wake_field_integration}
+\end{equation}
+
+Although the evaluation of the integral is performed at the witness particle trajectory $\mathrm{r}_t$, the dependence on $\mathbf{r}_{\mathrm{s}}$ is contained implicitly in the $\mathbf{E}^{\delta}$ and $\mathbf{B}^{\delta}$ fields, since they will be excited differently depending on the source charge transverse position. Its longitudinal component is related to the energy change $\Delta U_{\mathrm{t}}$ of the witness particle by
+%
+\begin{equation}
+w_{\parallel} =
+\frac{\Delta U_{\mathrm{t}}}
+{q_{\mathrm{s}}q_{\mathrm{t}}} = -\frac{U_{\mathrm{loss}}} {q_{\mathrm{s}}q_{\mathrm{t}}},
+\label{eq:longitudinal_wake_energy_change}
+\end{equation}
+%
+where $U_{\mathrm{loss}}=-\Delta U_{\mathrm{t}}$ denotes the positive energy lost by the source particle in the creation of the wakefield.
+The wake function can be interpreted as the Green function, or impulse response, of the accelerator structure, depending only on its geometry and material properties and not on the excitation source. It is the quantity provided to beam-dynamics simulations to evaluate the effect of wakefields on arbitrary beam distributions.
+
+\subsubsection{Longitudinal wake potential}
+\label{sec:wake_field_integration}
+
+An ideal point charge cannot be represented on a finite computational grid because its singular distribution contains arbitrarily short wavelengths that would depend on the computational cell size. Wakefield simulations instead use a finite bunch, such as the Gaussian distribution introduced in Eq.~\eqref{eq:gaussian_bunch_profile}. The simulation consequently provides the bunch wake potential $W(s)$, rather than the point-charge wake function $w(s)$ itself. Using the same longitudinal orientation as for the source--witness separation, the normalized Gaussian line charge distribution located at $\mathrm{r}_s=(x_{\mathrm{s}},y_{\mathrm{s}})$ is,
+%
+\begin{equation}
+\lambda(s)
+=
+\frac{1}{\sqrt{2\pi}\sigma_z}
+\exp\left(-\frac{s^2}{2\sigma_z^2}\right),
+\qquad
+\int_{-\infty}^{\infty}\lambda(s)\,\mathrm{d}s=1.
+\label{eq:gaussian_bunch_profile}
+\end{equation}
+%
+The normalized charge distribution $\lambda(s)$ has units of $\mathrm{m}^{-1}$, while the physical line-charge density $q\lambda(s)$ is measured in $\mathrm{C/m}$. Within the bunch, $s$ identifies the position of a source slice relative to the bunch centre, with positive values towards its tail. The spatial distribution $\lambda(s)$ is related to the temporal profile $\lambda_t(z,t)$ introduced in Eq.~\eqref{eq:gaussian_bunch_temporal_profile} through $\lambda_t(z,t)=\beta c\,\lambda(s)$. Accordingly, $\lambda_t$ has units of $\mathrm{s}^{-1}$, and the physical beam current is $I(z,t)=q\lambda_t(z,t)=q\beta c\,\lambda(s)$, measured in amperes.
+
+To arrive to the \textbf{wake potential definition}, we consider this source bunch of charge $q$ travelling in the positive $z$-direction with constant velocity $v=\beta c$. Let $\mathbf{E}_{\mathrm{d}}\left(x,y,z,t\right)$ and $\mathbf{B}_{\mathrm{d}}\left(x,y,z,t\right)$ denote the electromagnetic fields excited by this \textbf{distributed source}. The bunch wake potential is obtained by integrating the Lorentz force per unit witness charge along a synchronous trajectory,
+
+\begin{equation}
+\mathbf{W}
+\left(
+\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s
+\right)
+=
+\frac{1}{q}
+\int_{z_{\min}}^{z_{\max}}
+\left[
+\mathbf{E}_{\mathrm{d}}
++
+\beta c\,\widehat{\mathbf{z}}\times\mathbf{B}_{\mathrm{d}}
+\right]_{
+\substack{
+(x,y)=\mathbf{r}_{\mathrm{t}}\\ t=\frac{z+s}{\beta c}}}
+\,\mathrm{d}z,
+\label{eq:bunch_wake_field_integration}
+\end{equation}
+
+where $\mathbf{r}_{\mathrm{s}}=(x_{\mathrm{s}},y_{\mathrm{s}})$ is the source position and $\mathbf{r}_{\mathrm{t}}=(x_{\mathrm{t}},y_{\mathrm{t}})$ defines the "witness" integration path transverse location. Similarly to the wake function, the dependence on $\mathbf{r}_{\mathrm{s}}$ is contained implicitly in the distributed fields, since they will be excited differently depending on the source bunch transverse position. In this line integral, the fields are sampled at $t=(z+s)/(\beta c)$, when a synchronous sample separated from the source by $s$ reaches each longitudinal position $z$. Translated to the discrete notation, we need to take into account the current profile injection time $t_i$ and a truncated simulation domain starting at $z_{min}$, making:
+%
+\begin{equation}
+s(t,z) = \beta c (t-t_i) - (z-z_{min})
+\end{equation}
+%
+This \textbf{separation coordinate} $s(t,z)$ spans from $s_{\min}$ to $s_{\max}$ in steps of $\Delta s=\beta c\Delta t$, with $s=0$ at the bunch distribution centre. Due to the need of an injection time $t_i$ (see Sec.~\ref{sec:moving_beam_source}), at the start of the simulation the bunch centre is located $\beta c t_{\mathrm{i}}$ before the entrance plane at $z_{min}$, having $s_{\min}=-\beta c t_{\mathrm{i}}$. The largest trailing separation $s_{\max}$ is called the \gls{wakelength}, a crucial parameter in wakefield simulations that determines how long the fields must be advanced after the bunch enters the structure. A longer \gls{wakelength} provides access to later wakefield oscillations and improves the frequency resolution, but increases the computational time. For a longitudinal integration interval of length $L_z=z_{\max}-z_{\min}$, the required simulation time is $t_{\mathrm{sim}}=t_{\mathrm{i}}+(L_z+s_{\max})/(\beta c)$.
+
+Since $\widehat{\mathbf{z}}\times\mathbf{B}_{\mathrm{d}}$ is purely transverse, the \textbf{longitudinal wake potential} conveniently contains only the longitudinal electric field,
+%
+\begin{equation}
+W_{\parallel}
+\left(
+\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s
+\right)
+=
+\frac{1}{q_{\mathrm{s}}}
+\int_{z_{\min}}^{z_{\max}}
+E_{\mathrm{d},z}
+\left(
+\mathbf{r}_{\mathrm{t}},z,
+t=\frac{z+s}{\beta c}
+\right)
+\,\mathrm{d}z.
+\label{eq:longitudinal_wake_field_integration}
+\end{equation}
+%
+Division by $q_{\mathrm{s}}$ removes the excitation amplitude, giving $W_{\parallel}$ in $\mathrm{V/C}$. In the discrete calculation, the required synchronous samples may lie between the available spatial or temporal field values and must then be obtained by interpolation. The wake potential depends on the bunch distribution used to excite the longitudinal electric field, and cannot be considered an intrinsic property of the  Any wake potential $W(s)$ can be retrieved from the point-charge wake function $w(s)$ via a convolution with a normalized charge distribution $\lambda(s)$, having: 
+%
+\begin{equation}
+\mathbf{W}(s)=\int_{-\infty}^{\infty} \boldsymbol{w}(s-s')\lambda(s')\,\mathrm{d}s' 
+\end{equation}
+%
+with the dependence on $\mathbf{r}_{\mathrm{s}}$ and $\mathbf{r}_{\mathrm{t}}$ omitted for brevity.
+
+\subsubsection{Transverse wake potential}
+\label{sec:transverse_wake_integration}
+
+The transverse wake potential can be obtained directly from the transverse components of Eq.~\eqref{eq:bunch_wake_field_integration}. For an ultrarelativistic beam, however, the electric and magnetic contributions may be individually large and nearly cancel, making direct integration sensitive to numerical errors.
+
+The transverse wake (potential or function) can instead be derived from the longitudinal wake through the \textbf{Panofsky--Wenzel theorem}. With the convention $s>0$ behind the source used here,
+
+\begin{equation}
+W_{\perp,\alpha}
+\left(
+\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s
+\right)
+= -\frac{\partial}{\partial \alpha_{\mathrm{t}}}
+\int_{-\infty}^{s}
+W_{\parallel}
+\left(
+\mathbf{r}_{\mathrm{s}},\mathbf{r}_{\mathrm{t}},s'
+\right)
+\,\mathrm{d}s',
+\qquad
+\alpha=x,y,
+\label{eq:panofsky_wenzel_wake_potential}
+\end{equation}
+
+where $\alpha_{\mathrm{t}}$ denotes the corresponding transverse coordinate of the integration path. This form assumes that the wake vanishes sufficiently far ahead of the bunch and that the scattered fields vanish at the longitudinal integration limits. Numerically, the transverse gradient is estimated from longitudinal wake potentials evaluated along neighbouring integration paths.
+
+\subsection{Impedance calculation}
+\label{sec:wake_impedance_calculation}
+
+The beam-coupling impedance $Z$ is defined from the Fourier transform of the point-charge wake function $w$ introduced in Sec.~\ref{sec:bunch_wake_potential}. The wake potential computed in a simulation, however, contains both the response of the structure and the spectrum of the finite excitation bunch. The point-charge impedance is recovered by deconvolving the wake potential $W$ with the bunch distribution $\lambda(s)$ in Fourier space.
+
+For a function sampled against the separation $s$, define the spatial Fourier transform as
+%
+\begin{equation}
+\mathcal{F}_s\{g\}(\omega)
+=
+\int_{-\infty}^{\infty}
+g(s)
+\exp\left(-\mathrm{i}\frac{\omega s}{\beta c}\right)
+\,\mathrm{d}s,
+\qquad
+\Lambda(\omega)=\mathcal{F}_s\{\lambda\}(\omega).
+\label{eq:wake_spatial_fourier_transform}
+\end{equation}
+%
+With this definition, the impedance convention adopted in this thesis is
+
+\begin{equation}
+Z_{\parallel}(\omega) = -
+\frac{
+\mathcal{F}_s\{W_{\parallel}(s)\}(\omega)
+}{
+\mathcal{F}_s\{\beta c\lambda(s)\}(\omega)
+},
+\qquad
+Z_{\perp,\alpha}(\omega) = \mathrm{i}
+\frac{
+\mathcal{F}_s\{W_{\perp,\alpha}(s)\}(\omega)
+}{
+\mathcal{F}_s\{\beta c\lambda(s)\}(\omega)
+},
+\quad
+\alpha=x,y.
+\label{eq:impedance_deconvolution}
+\end{equation}
+
+\subsubsection{Notes on impedance conventions}
+In the present notation, the factor $\beta c$ converts the normalized longitudinal distribution $\lambda(s)$, with units of inverse length $[\mathrm{m}^{-1}]$, into the corresponding normalized current profile $\lambda_t$ of Eq.~\ref{eq:gaussian_bunch_temporal_profile}, expressed in $[\mathrm{s}^{-1}]$. This ensures the correct impedance units: since the wake potential $W$ is expressed in $\mathrm{V/C}$, Eq.~\eqref{eq:impedance_deconvolution} gives $\mathrm{V\,s/C}=\mathrm{V/A}=\Omega$.
+
+Following the first-order expansion of the transverse impedance components, $Z_{\perp}$ is often expressed in $\Omega/\mathrm{m}$. This is obtained after normalizing by the relevant transverse offset: the source offset for the dipolar contribution and the integration-path offset for the quadrupolar contribution (see Sec.~\ref{ch::chapter2}).
+
+The minus sign in $Z_{\parallel}$ is chosen such that an energy loss corresponds to a positive real longitudinal impedance. The factor $\mathrm{i}$ in $Z_{\perp,\alpha}$ is part of the transverse impedance convention and compensates the factor $\mathrm{i}$ introduced when the longitudinal derivative from the Panofsky--Wenzel relation, Eq.~\eqref{eq:panofsky_wenzel_wake_potential}, is transformed to Fourier space. Indeed,
+%
+\begin{equation}
+\frac{\partial \boldsymbol{W_{\perp, \alpha}}}{\partial s} = -\nabla_{\perp, \alpha}\boldsymbol{W_{\parallel}} \quad \Rightarrow \quad
+\mathcal{F}_s
+\left\{
+\frac{\partial W_{\perp,\alpha}}{\partial s}
+\right\}
+=
+\mathrm{i}\frac{\omega}{\beta c}
+\mathcal{F}_s\{W_{\perp,\alpha}\}
+\end{equation}
+%
+With the impedance definitions of Eq.~\eqref{eq:impedance_deconvolution}, the Panofsky--Wenzel relation takes the simple frequency-domain form
+%
+\begin{equation}
+\frac{\omega}{\beta c}Z_{\perp,\alpha}(\omega)
+=
+\frac{\partial Z_{\parallel}(\omega)}{\partial \alpha_{\mathrm{t}}},
+\qquad
+\alpha=x,y.
+\label{eq:panofsky_wenzel_impedance}
+\end{equation}
+%
+\subsubsection{The bunch spectrum}
+The Fourier transform of the current profile gives the bunch spectrum $\Lambda(\omega)$ of the time-domain excitation. This is a crucial figure in wakefield simulations, as it defines the impedance frequency range excited by the passing bunch. For the normalized Gaussian bunch of Eq.~\eqref{eq:gaussian_bunch_temporal_profile}, the spectrum is
+%
+\begin{equation}
+\Lambda(\omega)
+=
+\exp\left[
+-\frac{1}{2}
+\left(
+\frac{\omega\sigma_z}{\beta c}
+\right)^2
+\right]
+\label{eq:gaussian_bunch_spectrum}
+\end{equation}
+%
+It describes the relative strength with which the passing bunch excites each frequency, and its amplitude decreases rapidly above the effective bunch bandwidth.  Since current profile is normalized, $\Lambda(f)$ is dimensionless and satisfies $\Lambda(0)=1$. Performing the deconvolution at frequencies where $\lvert\Lambda(\omega)\rvert$ is small amplifies numerical noise, so the impedance should only be interpreted over the range sufficiently excited by the bunch, here taken as $f\leq f_{\max}=\beta c/(3\sigma_z)$, as described in Sec.~\ref{sec:moving_beam_source}.
+
+In wakefield simulations of accelerator components, the bunch length \(\sigma_z\) of the charge distribution is typically in the order of centimetres for proton (or ion) bunches. Electron bunches can be considerably shorter, requiring much smaller cells and a larger total number of grid points to cover the same structure~\cite{zannini:ipac2026-wep5102}. 
+
+Figure~\ref{fig:beam_profiles} illustrates the relation between the spatial charge distribution $\lambda(s)$, the temporal current profile $I(t)=q\lambda_t(t)$, and the normalized bunch spectrum $\Lambda(f)$ for two ultrarelativistic Gaussian bunches with $\sigma_z=50~\mathrm{mm}$ and $10~\mathrm{mm}$. The corresponding effective maximum frequencies are approximately $2$ and $10~\mathrm{GHz}$, respectively. The temporal profiles shown correspond to a bunch charge of $q=1~\mathrm{nC}$.
+%
+\begin{figure}[htb]
+\centering
+\includegraphics[width=0.95\linewidth]{figures_ch3/fig_beam_profiles.pdf}
+\caption{Beam source spatial and temporal Gaussian bunch profiles and their spectra, illustrating the spatial and temporal sizes, and its implication on the maximum frequency excited.}
+\label{fig:beam_profiles}
+\end{figure}
+%
+
+% For the introduction
+% \subsubsection{Dipolar and quadrupolar contributions}
+% \label{sec:dipolar_quadrupolar_wake_integration}
+
+% The transverse wake depends on both the source and witness positions. Close to the reference axis, its horizontal component may be expanded to first order as
+
+% \begin{equation}
+% W_{\perp,x}(s) = W_{\mathrm{C},x}(s) + W_{\mathrm{D},x}(s)\,\Delta x_{\mathrm{s}} + W_{\mathrm{Q},x}(s)\,\Delta x_{\mathrm{t}} +
+% \mathcal{O}(x^2),
+% \label{eq:transverse_wake_first_order_expansion}
+% \end{equation}
+
+% with an analogous expression in the vertical plane. Here, $W_{\mathrm{C}}$ is a position-independent coherent contribution that may arise in asymmetric structures, while $W_{\mathrm{D}}$ and $W_{\mathrm{Q}}$ are the dipolar and quadrupolar contributions.
+
+% The dipolar wake is excited by displacing the source bunch, whereas the quadrupolar wake is obtained by changing the witness integration path. Several combinations of source and witness offsets may be needed to separate these terms and account for the symmetries of the structure.
+
+% The discrete construction of the source trajectory and integration paths, field interpolation, wake accumulation, and impedance deconvolution are presented in the implementation chapter.
+
+
+
+% -----------------------------------
